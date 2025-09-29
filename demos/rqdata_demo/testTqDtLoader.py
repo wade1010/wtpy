@@ -5,6 +5,7 @@ from tqdm import tqdm
 import os
 from tqsdk import TqApi, TqAuth
 import datetime
+from tqsdk import TqSim, TqBacktest
 class Ifeed(object):
     def __init__(self):
         self.dthelper = WtDataHelper()
@@ -232,40 +233,148 @@ class TqFeed(Ifeed):
         symbol = self.code_std(code)
         exchange, pid, month = self.parse_code(code)
         
-        # 创建TqApi实例（每次调用创建新实例避免长连接问题）
-        api = TqApi(auth=self.tqauth)
-        try:
-            # 从天勤获取tick数据
-            ticks = api.get_tick_serial(symbol, start_dt=start_date, end_dt=end_date)
-            if ticks is None or len(ticks) == 0:
-                return None
+        # 准备回测参数
+        if start_date is None or end_date is None:
+            return None
+            
+        # 转换日期格式
+        if isinstance(start_date, str):
+            start_dt = datetime.datetime.strptime(start_date, "%Y%m%d")
+        elif isinstance(start_date, datetime.datetime):
+            start_dt = start_date
+        else:
+            start_dt = datetime.datetime.combine(start_date, datetime.time.min)
+            
+        if isinstance(end_date, str):
+            end_dt = datetime.datetime.strptime(end_date, "%Y%m%d")
+        elif isinstance(end_date, datetime.datetime):
+            end_dt = end_date
+        else:
+            end_dt = datetime.datetime.combine(end_date, datetime.time.max)
+        
+        # 使用字典存储所有tick数据，以datetime为key去重
+        all_ticks = {}
+        
+        # 从end_date开始，逐步往前回测
+        current_datetime = end_dt
+        
+        print(f"开始获取 {symbol} 从 {start_dt} 到 {end_dt} 的Tick历史数据...")
+        
+        while current_datetime.date() >= start_dt.date():
+            # 当前时间的回测参数
+            backtest_start = current_datetime
+            backtest_end = backtest_start
+            
+            print(f"正在获取 {current_datetime} 的Tick数据...")
+            
+            try:
+                # 使用回测模式获取当前时间段的历史数据
+                api = TqApi(
+                    account=TqSim(),
+                    auth=self.tqauth,
+                    backtest=TqBacktest(start_dt=backtest_start, end_dt=backtest_end),
+                    web_gui=False
+                )
                 
-            # 转换为DataFrame
-            df = pd.DataFrame(ticks)
+                try:
+                    # 获取Tick数据，每次最多10000条
+                    ticks_data = api.get_tick_serial(symbol=symbol, data_length=10000)
+                    
+                    api.wait_update()
+                    
+                    # 当前批次的tick数据
+                    tick_list = []
+                    for i in range(len(ticks_data)):
+                        tick_data = ticks_data.iloc[i]
+                        if tick_data['datetime'] > 0:  # 有效数据
+                            # 转换时间戳（纳秒转秒）
+                            timestamp_ns = tick_data['datetime']
+                            timestamp_s = timestamp_ns / 1e9
+                            dt = datetime.datetime.fromtimestamp(timestamp_s)
+                            
+                            # 构建tick字典
+                            tick_dict = {
+                                'datetime': dt,
+                                'exchg': exchange,
+                                'code': pid + month,
+                                'price': float(tick_data.get('last_price', 0)),
+                                'open': float(tick_data.get('open', 0)),
+                                'high': float(tick_data.get('highest', 0)),
+                                'low': float(tick_data.get('lowest', 0)),
+                                'total_volume': float(tick_data.get('volume', 0)),
+                                'volume': 0,  # 增量，稍后计算
+                                'total_turnover': float(tick_data.get('amount', 0)),
+                                'turn_over': 0,  # 增量，稍后计算
+                                'open_interest': float(tick_data.get('open_interest', 0)),
+                                'diff_interest': 0,  # 增量，稍后计算
+                                'trading_date': tick_data.get('trading_day', '').replace('-', ''),
+                                'action_date': dt.strftime('%Y%m%d'),
+                                'action_time': dt.strftime('%H%M%S%f'),
+                                'pre_close': float(tick_data.get('pre_close', 0)),
+                                'pre_settle': float(tick_data.get('pre_settlement', 0)),
+                                'settle_price': float(tick_data.get('settlement', 0)),
+                            }
+                            
+                            # 添加买卖盘数据
+                            for j in range(1, 6):
+                                tick_dict[f'bid_{j}'] = float(tick_data.get(f'bid_price{j}', 0))
+                                tick_dict[f'ask_{j}'] = float(tick_data.get(f'ask_price{j}', 0))
+                                tick_dict[f'bid_qty_{j}'] = float(tick_data.get(f'bid_volume{j}', 0))
+                                tick_dict[f'ask_qty_{j}'] = float(tick_data.get(f'ask_volume{j}', 0))
+                            
+                            tick_list.append(tick_dict)
+                    
+                    # 将当前批次的数据加入到all_ticks中（用时间去重）
+                    for tick_dict in tick_list:
+                        dt_key = tick_dict['datetime']
+                        # 只保留在请求时间范围内的数据
+                        if start_dt <= dt_key <= end_dt:
+                            all_ticks[dt_key] = tick_dict
+                    
+                    print(f"{current_datetime} 获取到 {len(tick_list)} 条Tick数据，当前共 {len(all_ticks)} 条Tick数据")
+                    
+                    # 检查最早的数据时间，判断是否需要继续往前获取
+                    if tick_list:
+                        # 找到最早的时间
+                        earliest_time = min(tick['datetime'] for tick in tick_list)
+                        
+                        # 如果最早的数据时间已经小于等于start_date的开始时间，说明已经获取了足够的数据
+                        if earliest_time <= start_dt:
+                            print(f"已获取到 {start_dt} 的数据，停止回测")
+                            break
+                        
+                        # 更新current_datetime
+                        current_datetime = earliest_time - datetime.timedelta(seconds=1)
+                    else:
+                        # 如果当前时间段没有数据，往前推一天
+                        current_datetime = current_datetime - datetime.timedelta(days=1)
+                        print(f"当前时间段没有数据，往前推一天到 {current_datetime}")
+                
+                finally:
+                    # 确保关闭API连接
+                    api.close()
+                    
+            except Exception as e:
+                print(f"获取 {current_datetime} 的Tick数据失败: {e}")
+                current_datetime = current_datetime - datetime.timedelta(days=1)
+        
+        # 将all_ticks转换为按时间排序的DataFrame
+        if not all_ticks:
+            return None
             
-            # 添加交易所和合约代码列
-            df["exchg"] = code.split(".")[0]
-            df["code"] = code.split(".")[1] + code.split(".")[2]
-            
-            # 处理日期时间格式
-            df["datetime"] = pd.to_datetime(df["datetime"] / 1e9, unit="s")
-            df["date"] = df["datetime"].dt.strftime("%Y%m%d")
-            df["time"] = df["datetime"].dt.strftime("%H%M%S%f")
-            df["trading_day"] = df["trading_day"].apply(lambda x: x.replace("-", ""))
-            
-            # 计算增量值
-            df["volume_delta"] = df["volume"].diff().fillna(0).astype(float)
-            df["amount_delta"] = df["amount"].diff().fillna(0).astype(float)
-            df["open_interest_delta"] = df["open_interest"].diff().fillna(0).astype(float)
-            
-            # 选择并重命名列
-            df = df[[col for col in self.tick_col_map.keys() if col in df.columns]]
-            df = df.rename(columns={k: v for k, v in self.tick_col_map.items() if k in df.columns})
-            
-            return df
-        finally:
-            # 确保关闭API连接
-            api.close()
+        # 按时间排序
+        sorted_times = sorted(all_ticks.keys())
+        sorted_ticks = [all_ticks[dt] for dt in sorted_times]
+        
+        # 转换为DataFrame
+        df = pd.DataFrame(sorted_ticks)
+        
+        # 计算增量值
+        df['volume'] = df['total_volume'].diff().fillna(0).astype(float)
+        df['turn_over'] = df['total_turnover'].diff().fillna(0).astype(float)
+        df['diff_interest'] = df['open_interest'].diff().fillna(0).astype(float)
+        
+        return df
     
     def get_bar(self, code, start_date=None, end_date=None, frequency="1m"):
         """获取K线数据"""
@@ -275,40 +384,142 @@ class TqFeed(Ifeed):
             
         symbol = self.code_std(code)
         
-        # 创建TqApi实例
-        api = TqApi(auth=self.tqauth)
-        try:
-            # 转换周期格式为天勤接受的格式
-            duration = frequency.replace("m", "min") if "m" in frequency else "1day"
+        # 准备回测参数
+        if start_date is None or end_date is None:
+            return None
             
-            # 获取K线数据
-            klines = api.get_kline_serial(symbol, duration=duration, start_dt=start_date, end_dt=end_date)
-            if klines is None or len(klines) == 0:
-                return None
-                
-            # 转换为DataFrame
-            df = pd.DataFrame(klines)
+        # 转换日期格式
+        if isinstance(start_date, str):
+            start_dt = datetime.datetime.strptime(start_date, "%Y%m%d")
+        elif isinstance(start_date, datetime.datetime):
+            start_dt = start_date
+        else:
+            start_dt = datetime.datetime.combine(start_date, datetime.time.min)
             
-            # 处理日期时间格式
-            df["datetime"] = pd.to_datetime(df["datetime"] / 1e9, unit="s")
-            df["date"] = df["datetime"].dt.strftime("%Y%m%d")
-            if "m" in frequency:
-                df["time"] = df["datetime"].dt.strftime("%H%M")
-            else:
-                df["time"] = "0000"
-                
-            # 计算成交额（如果没有提供）
-            if "amount" not in df.columns and "volume" in df.columns and "close" in df.columns:
-                df["amount"] = df["volume"] * df["close"]
-                
-            # 选择并重命名列
-            df = df[[col for col in self.bar_col_map.keys() if col in df.columns]]
-            df = df.rename(columns={k: v for k, v in self.bar_col_map.items() if k in df.columns})
+        if isinstance(end_date, str):
+            end_dt = datetime.datetime.strptime(end_date, "%Y%m%d")
+        elif isinstance(end_date, datetime.datetime):
+            end_dt = end_date
+        else:
+            end_dt = datetime.datetime.combine(end_date, datetime.time.max)
+        
+        # 转换周期格式为天勤接受的格式并计算duration_seconds参数
+        if frequency == "m1":
+            duration_seconds = 60
+        elif frequency == "m5":
+            duration_seconds = 300
+        elif frequency == "d":
+            duration_seconds = 86400
+        else:
+            print(f"不支持的周期: {frequency}")
+            return None
+        
+        # 存储所有K线数据
+        all_bars = []
+        existing_datetimes = set()  # 用于去重
+        
+        # 从end_date开始，逐步往前回测
+        current_end = end_dt
+        
+        print(f"开始获取 {symbol} 从 {start_dt} 到 {end_dt} 的历史K线数据...")
+        
+        while current_end.date() >= start_dt.date():
+            # 当前时间的回测参数
+            backtest_start = current_end
+            backtest_end = backtest_start
             
-            return df
-        finally:
-            # 确保关闭API连接
-            api.close()
+            print(f"正在获取 {current_end} 的K线数据...")
+            
+            try:
+                # 使用回测模式获取历史数据
+                api = TqApi(
+                    account=TqSim(),
+                    auth=self.tqauth,
+                    backtest=TqBacktest(start_dt=backtest_start, end_dt=backtest_end),
+                    web_gui=False
+                )
+                
+                try:
+                    # 获取K线数据
+                    klines = api.get_kline_serial(
+                        symbol=symbol,
+                        duration_seconds=duration_seconds,
+                        data_length=10000
+                    )
+                    
+                    api.wait_update()
+                    
+                    # 收集数据
+                    current_data = []
+                    for i in range(len(klines)):
+                        if klines.iloc[i]['datetime'] > 0:  # 有效数据
+                            # 转换时间戳（纳秒转秒）
+                            timestamp_ns = klines.iloc[i]['datetime']
+                            timestamp_s = timestamp_ns / 1e9
+                            dt = datetime.datetime.fromtimestamp(timestamp_s)
+                            
+                            # 去重检查 - 如果这个时间点已经存在，跳过
+                            if dt in existing_datetimes:
+                                continue
+                                
+                            # 过滤日期范围
+                            if start_dt <= dt <= end_dt:
+                                bar_dict = {
+                                    'datetime': dt,
+                                    'date': dt.strftime('%Y%m%d'),
+                                    'time': dt.strftime('%H%M') if "m" in frequency else "0000",
+                                    'open': float(klines.iloc[i]['open']),
+                                    'high': float(klines.iloc[i]['high']),
+                                    'low': float(klines.iloc[i]['low']),
+                                    'close': float(klines.iloc[i]['close']),
+                                    'vol': float(klines.iloc[i]['volume']),
+                                    'money': float(klines.iloc[i]['amount']) if 'amount' in klines.iloc[i] else float(klines.iloc[i]['volume'] * klines.iloc[i]['close']),
+                                    'hold': float(klines.iloc[i]['open_interest']),
+                                }
+                                
+                                existing_datetimes.add(dt)  # 添加到去重集合
+                                current_data.append(bar_dict)
+                    
+                    # 将本次收集的数据加入到所有数据中
+                    all_bars.extend(current_data)
+                    print(f"实际获取 {len(current_data)} 条K线数据，总计 {len(all_bars)} 条")
+                    
+                    # 检查是否满足终止条件
+                    if len(current_data) <= 0:
+                        print(f"实际获取数量为0，表明已获取全部可用数据")
+                        break
+                    
+                    # 找到本次获取数据中最老的时间
+                    if current_data:
+                        oldest_datetime = min(item['datetime'] for item in current_data)
+                        
+                        # 检查是否已经到达起始日期
+                        if oldest_datetime.date() <= start_dt.date():
+                            print(f"已到达起始日期{start_dt}，停止查询")
+                            break
+                        
+                        # 设置下一次查询的结束时间
+                        current_end = oldest_datetime - datetime.timedelta(seconds=1)
+                    else:
+                        # 如果没有数据，往前推一天
+                        current_end = current_end - datetime.timedelta(days=1)
+                
+                finally:
+                    # 确保关闭API连接
+                    api.close()
+                    
+            except Exception as e:
+                print(f"获取 {current_end} 的K线数据失败: {e}")
+                current_end = current_end - datetime.timedelta(days=1)
+        
+        # 将收集的数据转换为DataFrame并按时间排序
+        if not all_bars:
+            return None
+            
+        df = pd.DataFrame(all_bars)
+        df = df.sort_values(by='datetime')
+        
+        return df
             
     def code_std(self, stdCode: str):
         """转换标准代码到天勤代码格式"""
@@ -337,7 +548,7 @@ class TqFeed(Ifeed):
 
 if __name__ == '__main__':
     # 从天勤下载数据
-    feed = TqFeed("你的天勤账号", "你的天勤密码")
+    feed = TqFeed("", "")
     
     # 数据存储的目录
     storage_path = "../storage"
