@@ -9,5 +9,6 @@ fastapi
 uvicorn
 deap
 websockets>=10.4
+pyfolio
 itsdangerous
 baostock
