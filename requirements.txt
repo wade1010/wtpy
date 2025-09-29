@@ -12,3 +12,4 @@ websockets>=10.4
 pyfolio
 itsdangerous
 baostock
+tqdm
