@@ -9,3 +9,5 @@ fastapi
 uvicorn
 deap
 websockets>=10.4
+itsdangerous
+baostock

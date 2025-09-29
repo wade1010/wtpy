@@ -9,7 +9,9 @@ import random
 
 from wtpy import WtEngine,WtBtEngine,EngineType
 from wtpy.apps import WtBtAnalyst
-from Strategies.DualThrust import StraDualThrust
+import sys
+sys.path.append('../Strategies')
+from DualThrust import StraDualThrust
 
 class MyDataLoader(BaseExtDataLoader):
     
@@ -115,7 +117,7 @@ def test_in_bt():
     engine.run_backtest()
 
     analyst = WtBtAnalyst()
-    analyst.add_strategy("pydt_IF", folder="./outputs_bt/pydt_IF/", init_capital=500000, rf=0.02, annual_trading_days=240)
+    analyst.add_strategy("pydt_IF", folder="./outputs_bt/", init_capital=500000, rf=0.02, annual_trading_days=240)
     analyst.run()
 
     kw = input('press any key to exit\n')
