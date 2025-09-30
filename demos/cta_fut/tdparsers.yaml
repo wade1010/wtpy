@@ -7,7 +7,7 @@ parsers:
     host: 127.0.0.1
     filter: ''
 
--   active: true    
+-   active: true                          # 只能启动一个
     id: parser0
     module: ParserShm                     # 基于Sharememory的行情解析模块
     path: ../datakit_fut/exchange.membin  # memmap文件路径，需要和datakit匹配

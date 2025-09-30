@@ -1,6 +1,8 @@
+# -*- coding: utf-8 -*-
 from wtpy.WtCoreDefs import WTSTickStruct
 from ctypes import addressof,create_string_buffer,cast,pointer,POINTER
 from socket import *
+# 得将dtcfg.yaml里面的 broadcaster 下面的 active 改为true 本实例才可以接收到数据
 
 def recv_from_datakit(host:str = '0.0.0.0', port:int = 9001):
     s = socket(AF_INET,SOCK_DGRAM)
