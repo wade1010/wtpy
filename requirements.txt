@@ -13,3 +13,4 @@ pyfolio
 itsdangerous
 baostock
 tqdm
+tqsdk
