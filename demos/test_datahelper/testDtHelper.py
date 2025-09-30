@@ -33,6 +33,35 @@ def test_store_bars():
     print(buffer[-1].to_dict)
 
     dtHelper.store_bars(barFile="./CFFEX.IF.HOT_m5.bin", firstBar=buffer, count=len(df), period="m5")
+def test_store_bars_from_vnpy_csv():
+    df = pd.read_csv('./vnpy_DCE.jm888.csv')
+
+    df['datetime'] = pd.to_datetime(df['datetime'])
+
+    # 分别提取日期和时间（WonderTrader格式）
+    df['date'] = df['datetime'].dt.strftime('%Y/%m/%d')  # 保持日期格式
+    df['time'] = df['datetime'].dt.strftime('%H:%M:%S')  # 保持时间格式
+
+    df['date'] = df['date'].astype('datetime64').dt.strftime('%Y%m%d').astype('int64')
+    df['time'] = (df['date'] - 19900000) * 10000 + df['time'].str.replace(':', '').str[:-2].astype('int')
+
+    # 最终输出格式
+    wt_columns = ['date', 'time', 'open', 'high', 'low', 'close', 'volume', 'turnover', 'open_interest']
+    df = df[wt_columns]
+
+    BUFFER = WTSBarStruct*len(df)
+    buffer = BUFFER()
+
+    def assign(procession, buffer):
+        tuple(map(lambda x: setattr(buffer[x[0]], procession.name, x[1]), enumerate(procession)))
+
+
+    df.apply(assign, buffer=buffer)
+    print(df.head())
+    print(buffer[0].to_dict)
+    print(buffer[-1].to_dict)
+
+    dtHelper.store_bars(barFile="./DCE.jm_HOT.dsb", firstBar=buffer, count=len(df), period="m5")
     
 def test_store_ticks():
 
@@ -103,5 +132,6 @@ def compare_read_dsb_ticks(times:int = 100):
     elapse = (t3-t2).total_seconds()*1000.0
     print(f"read_dsb_ticks {num_ticks} ticks for {times} times: {elapse:.2f}ms totally, {elapse/times:.2f}ms per reading")
 
-compare_read_dsb_bars()
+test_store_bars_from_vnpy_csv()
+# compare_read_dsb_bars()
 # compare_read_dsb_ticks()

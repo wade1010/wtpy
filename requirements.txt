@@ -14,3 +14,4 @@ itsdangerous
 baostock
 tqdm
 tqsdk
+statsmodels==0.14.0

@@ -4,8 +4,8 @@ import os
 from wtpy.WtCoreDefs import WTSBarStruct
 from wtpy.apps.datahelper import DHFactory as DHF
 
-hlper = DHF.createHelper("baostock")
-hlper.auth()
+# hlper = DHF.createHelper("baostock")
+# hlper.auth()
 
 # tushare
 # hlper = DHF.createHelper("tushare")
