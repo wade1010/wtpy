@@ -5,7 +5,7 @@ parsers:
     front: tcp://140.207.239.178:43174
     id: parser
     module: ParserCTP
-    pass: 371268
-    user: 'wade1010'
+    pass: username
+    user: password
     # 如果要使用openctp，启用该配置项即可
     # ctpmodule: tts_thostmduserapi_se
