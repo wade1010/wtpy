@@ -1,11 +1,11 @@
 parsers:
 -   active: true
-    broker: '88888'
+    broker: '8888'
     code: ''
-    front: tcp://180.168.212.53:31213
+    front: tcp://140.207.239.178:43174
     id: parser
     module: ParserCTP
-    pass: 
-    user: 
+    pass: 371268
+    user: 'wade1010'
     # 如果要使用openctp，启用该配置项即可
     # ctpmodule: tts_thostmduserapi_se

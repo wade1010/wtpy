@@ -35,9 +35,11 @@ class StraDualThrust(BaseCtaStrategy):
 
     def on_tick(self, context: CtaContext, stdCode: str, newTick: dict):
         # print(newTick)
+        context.stra_log_text("on_tick")
         pass
-    
+
     def on_calculate(self, context:CtaContext):
+        context.stra_log_text("on_calculate")
         code = self.__code__    #品种代码
 
         trdUnit = 1
@@ -86,27 +88,27 @@ class StraDualThrust(BaseCtaStrategy):
         #读取当前仓位
         curPos = context.stra_get_position(code)/trdUnit
 
-        if curPos == 0:
-            if highpx >= upper_bound:
-                context.stra_enter_long(code, 1*trdUnit, 'enterlong')
-                # context.stra_log_text(f"向上突破{highpx:.2f}>={upper_bound:.2f}，多仓进场")
-                #修改并保存
-                self.xxx = 1
-                context.user_save_data('xxx', self.xxx)
-                return
-
-            if lowpx <= lower_bound and not self.__is_stk__:
-                context.stra_enter_short(code, 1*trdUnit, 'entershort')
-                # context.stra_log_text(f"向下突破{lowpx:.2f}<={lower_bound:.2f}，空仓进场")
-                return
-        elif curPos > 0:
-            if lowpx <= lower_bound:
-                context.stra_exit_long(code, 1*trdUnit, 'exitlong')
-                # context.stra_log_text(f"向下突破{lowpx:.2f}<={lower_bound:.2f}，多仓出场")
-                #raise Exception("except on purpose")
-                return
-        else:
-            if highpx >= upper_bound and not self.__is_stk__:
-                context.stra_exit_short(code, 1*trdUnit, 'exitshort')
-                # context.stra_log_text(f"向上突破{highpx:.2f}>={upper_bound:.2f}，空仓出场")
-                return
+        # if curPos == 0:
+        #     if highpx >= upper_bound:
+        #         context.stra_enter_long(code, 1*trdUnit, 'enterlong')
+        #         # context.stra_log_text(f"向上突破{highpx:.2f}>={upper_bound:.2f}，多仓进场")
+        #         #修改并保存
+        #         self.xxx = 1
+        #         context.user_save_data('xxx', self.xxx)
+        #         return
+        #
+        #     if lowpx <= lower_bound and not self.__is_stk__:
+        #         context.stra_enter_short(code, 1*trdUnit, 'entershort')
+        #         # context.stra_log_text(f"向下突破{lowpx:.2f}<={lower_bound:.2f}，空仓进场")
+        #         return
+        # elif curPos > 0:
+        #     if lowpx <= lower_bound:
+        #         context.stra_exit_long(code, 1*trdUnit, 'exitlong')
+        #         # context.stra_log_text(f"向下突破{lowpx:.2f}<={lower_bound:.2f}，多仓出场")
+        #         #raise Exception("except on purpose")
+        #         return
+        # else:
+        #     if highpx >= upper_bound and not self.__is_stk__:
+        #         context.stra_exit_short(code, 1*trdUnit, 'exitshort')
+        #         # context.stra_log_text(f"向上突破{highpx:.2f}>={upper_bound:.2f}，空仓出场")
+        #         return
