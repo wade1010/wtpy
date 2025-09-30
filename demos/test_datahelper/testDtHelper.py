@@ -41,12 +41,14 @@ def test_store_bars_from_vnpy_csv():
     # 分别提取日期和时间（WonderTrader格式）
     df['date'] = df['datetime'].dt.strftime('%Y/%m/%d')  # 保持日期格式
     df['time'] = df['datetime'].dt.strftime('%H:%M:%S')  # 保持时间格式
+    df['vol'] = df['volume']
+    df['hold'] = df['open_interest']
 
     df['date'] = df['date'].astype('datetime64').dt.strftime('%Y%m%d').astype('int64')
     df['time'] = (df['date'] - 19900000) * 10000 + df['time'].str.replace(':', '').str[:-2].astype('int')
 
-    # 最终输出格式
-    wt_columns = ['date', 'time', 'open', 'high', 'low', 'close', 'volume', 'turnover', 'open_interest']
+    # volume open_interest 需要 修改为 在 wtpy/WtCoreDefs.py的WTSBarStruct里面的_fields_ 对应的值
+    wt_columns = ['date', 'time', 'open', 'high', 'low', 'close', 'vol', 'turnover', 'hold']
     df = df[wt_columns]
 
     BUFFER = WTSBarStruct*len(df)

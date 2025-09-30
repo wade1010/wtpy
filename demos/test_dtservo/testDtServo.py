@@ -19,3 +19,8 @@ bars.to_csv("CFFEX.IF.HOT.csv")
 # # 读取IF主力合约的tick数据
 # bars = dtServo.get_ticks("CFFEX.IF.HOT", fromTime=202212210930, endTime=202212281500).to_df()
 # bars.to_csv("CFFEX.IF.HOT_ticks.csv")
+
+
+
+# bars = dtServo.get_bars("DCE.jm.HOT", "m1", fromTime=202501020900, endTime=0).to_df()
+# bars.to_csv("DCE.jm.HOT.csv")

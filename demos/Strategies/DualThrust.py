@@ -34,7 +34,7 @@ class StraDualThrust(BaseCtaStrategy):
         self.xxx = context.user_load_data('xxx',1)
 
     def on_tick(self, context: CtaContext, stdCode: str, newTick: dict):
-        # print(f"{newTick.get('action_date')} {newTick.get('action_time')},{newTick.get('price')}")
+        print(f"{newTick.get('action_date')} {newTick.get('action_time')},{newTick.get('price')}")
         pass
 
     def on_calculate(self, context:CtaContext):
@@ -50,7 +50,7 @@ class StraDualThrust(BaseCtaStrategy):
         if self.__is_stk__:
             theCode = theCode + "-" # 如果是股票代码，后面加上一个+/-，+表示后复权，-表示前复权
         np_bars = context.stra_get_bars(theCode, self.__period__, self.__bar_cnt__, isMain = True)
-
+        print(np_bars.bartimes[-1],np_bars.closes[-1],np_bars.opens[-1],np_bars.highs[-1],np_bars.lows[-1])
         #把策略参数读进来，作为临时变量，方便引用
         days = self.__days__
         k1 = self.__k1__
