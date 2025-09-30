@@ -15,13 +15,17 @@ hlper.auth()
 # hlper = DHF.createHelper("rqdata")
 # hlper.auth(**{"username":"00000000", "password":"0000000"})
 
+# tqsdk
+hlper = DHF.createHelper("tqsdk")
+hlper.auth(**{"username":"15600097398", "password":"wade1010"})
+
 # 落地股票列表
 # hlper.dmpCodeListToFile("stocks.json")
 
 # 下载K线数据
-# hlper.dmpBarsToFile(folder='./', codes=["CFFEX.IF.HOT","CFFEX.IC.HOT"], period='min1')
+hlper.dmpBarsToFile(folder='./', codes=["CFFEX.IF.HOT"], period='min1',start_date=datetime.datetime(2023,9,1,9,0),end_date=datetime.datetime(2025,9,30,15,0))
 # hlper.dmpBarsToFile(folder='./', codes=["CFFEX.IF.HOT","CFFEX.IC.HOT"], period='min5')
-hlper.dmpBarsToFile(folder='./', codes=["SZSE.399005","SZSE.399006","SZSE.399303"], period='day')
+# hlper.dmpBarsToFile(folder='./', codes=["SZSE.399005","SZSE.399006","SZSE.399303"], period='day')
 
 # 下载复权因子
 # hlper.dmpAdjFactorsToFile(codes=["SSE.600000",'SZSE.000001'], filename="./adjfactors.json")
