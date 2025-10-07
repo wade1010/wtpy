@@ -2,10 +2,10 @@ parsers:
 -   active: true
     broker: '8888'
     code: ''
-    front: tcp://140.207.239.178:43174
+    front: tcp://121.37.80.177:20004
     id: parser
     module: ParserCTP
-    pass: username
-    user: password
+    pass: 15308
+    user: 123456
     # 如果要使用openctp，启用该配置项即可
-    # ctpmodule: tts_thostmduserapi_se
+    ctpmodule: tts_thostmduserapi_se
