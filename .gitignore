@@ -27,3 +27,6 @@ ParserCTPFlow
 *.con
 *.dmb
 *.dsb
+/demos/cta_fut_allday/storage/*
+/demos/cta_fut_allday/QuoteFactory/CTPMDFlow/
+/demos/cta_fut_allday/QuoteFactory/DtLogs/

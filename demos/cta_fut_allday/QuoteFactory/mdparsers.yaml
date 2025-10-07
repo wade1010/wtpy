@@ -1,0 +1,12 @@
+parsers:
+-   active: true
+    broker: '9999'
+    code: 'SHFE.au2512'  # mod 
+    front: tcp://121.37.80.177:20004  # mod
+    id: parser
+    localtime: true   # mod
+    module: ParserCTP
+    user: 15308       # mod
+    pass: 123456      # mod
+    # 如果要使用openctp，启用该配置项即可
+    ctpmodule: tts_thostmduserapi_se    # mod

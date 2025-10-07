@@ -34,10 +34,11 @@ class StraDualThrust(BaseCtaStrategy):
         self.xxx = context.user_load_data('xxx',1)
 
     def on_tick(self, context: CtaContext, stdCode: str, newTick: dict):
-        print(f"{newTick.get('action_date')} {newTick.get('action_time')},{newTick.get('price')}")
+        print(f"on_tick {newTick.get('action_date')} {newTick.get('action_time')},{newTick.get('price')}")
         pass
 
     def on_calculate(self, context:CtaContext):
+        print(f"on_calculate {context.get_time},{context.get_price}")
         # context.stra_log_text("on_calculate")
         code = self.__code__    #品种代码
 

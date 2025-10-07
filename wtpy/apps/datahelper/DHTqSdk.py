@@ -1,3 +1,5 @@
+import numpy as np
+
 from wtpy.apps.datahelper.DHDefs import BaseDataHelper, DBHelper
 from wtpy.WtCoreDefs import WTSBarStruct
 from tqsdk import TqApi, TqAuth
@@ -212,8 +214,11 @@ class DHTqSdk(BaseDataHelper):
             current_start = start_date
 
             while current_start < end_date:
-                # 计算预估的数据总条数
-                days_diff = (end_date - current_start).days
+                start_np = np.datetime64(start_date)
+                end_np = np.datetime64(end_date+timedelta(days=1))
+
+                # 计算工作日（默认排除周末） 不包含 end_date 所以前面加1天
+                days_diff = np.busday_count(start_np, end_np)
 
                 if freq == 60:  # 1分钟
                     estimated_remaining_bars = days_diff * 600
@@ -236,9 +241,9 @@ class DHTqSdk(BaseDataHelper):
                     backtest_end = end_date + timedelta(minutes=1)
                 else:
                     if freq == 86400:  # 日线
-                        backtest_start = current_start + timedelta(days=int(batch_size / 0.72))  # 一周最起码有2天不交易 5/7约等于0.72
+                        backtest_start = current_start + timedelta(days=int(batch_size / (5/7)))
                     else:  # 分钟
-                        backtest_start = current_start + timedelta(minutes=int(batch_size / (0.72 * 0.5)))  # 一般不全是交易时间，国内一天不会超过11个小时
+                        backtest_start = current_start + timedelta(days=7*int(batch_size / (600 * 5)))  # 一般不全是交易时间，国内一天不会超过11个小时
                     backtest_end = backtest_start + timedelta(minutes=1)
 
                 # 确保不超过用户指定的结束时间

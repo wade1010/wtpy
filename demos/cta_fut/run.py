@@ -11,7 +11,7 @@ if __name__ == "__main__":
     env = WtEngine(EngineType.ET_CTA)
     env.init('../common/', "config.yaml")
     
-    straInfo = StraDualThrust(name='pydt_TL2512', code="CFFEX.TL2512", barCnt=1, period="ticks", days=1, k1=0.2, k2=0.2, isForStk=False)
+    straInfo = StraDualThrust(name='pydt_au', code="SHFE.au.2512", barCnt=2, period="m1", days=1, k1=0.2, k2=0.2, isForStk=False)
     env.add_cta_strategy(straInfo)
     
     idxWriter = ConsoleIdxWriter()
