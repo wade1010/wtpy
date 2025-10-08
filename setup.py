@@ -22,17 +22,17 @@ VERSION = '0.9.9.3'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    'numpy', 
-    'pandas==1.3.5',     
-    'chardet',
-    'pyyaml',
-    'xlsxwriter', 
-    'pyquery', 
-    'psutil', 
-    'fastapi',
-    'uvicorn',
-    'deap',
-    'websockets>=10.4'
+    'numpy==2.3.3',
+    'pandas==2.3.3',
+    'chardet>=5.2.0',
+    'pyyaml>=6.0.2',
+    'xlsxwriter>=3.2.3',
+    'pyquery>=1.4.3',
+    'psutil>=7.1.0',
+    'fastapi>=0.116.1',
+    'uvicorn>=0.35.0',
+    'deap>=1.4.3',
+    'websockets>=15.0.1'
 ]
 
 # What packages are optional?
