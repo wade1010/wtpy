@@ -4,6 +4,7 @@ from wtpy.apps.datahelper.DHDefs import BaseDataHelper, DBHelper
 from wtpy.WtCoreDefs import WTSBarStruct
 from tqsdk import TqApi, TqAuth
 from datetime import datetime, timedelta
+import time as sleep_time
 import json
 import os
 
@@ -192,7 +193,10 @@ class DHTqSdk(BaseDataHelper):
 
         for stdCode in codes:
             count += 1
-            print(f"Fetching {period} bars of {stdCode}({count}/{length})...")
+            if length > 1:
+                print(f"[任务] 开始获取 {stdCode} 的 {period} K线 ({count}/{length})")
+            else:
+                print(f"[任务] 开始获取 {stdCode} 的 {period} K线")
             code = stdCodeToTQ(stdCode)
             # 准备文件路径
             filename = "%s_%s.csv" % (stdCode, filetag)
@@ -202,9 +206,9 @@ class DHTqSdk(BaseDataHelper):
             if os.path.exists(filepath):
                 try:
                     os.remove(filepath)
-                    print(f"已删除旧文件: {filepath}")
+                    print(f"[文件] 发现旧文件，已删除: {filepath}")
                 except Exception as e:
-                    print(f"删除旧文件失败: {filepath}, 错误: {e}")
+                    print(f"[文件] 删除旧文件失败: {filepath}，错误: {e}")
 
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write("date,time,open,high,low,close,volume,open_interest\n")
@@ -237,7 +241,7 @@ class DHTqSdk(BaseDataHelper):
                 if batch_size <= 100:
                     batch_size = 100  # 至少取一个批次
 
-                print(f"从 {current_start} 到 {end_date} 预计剩余数据量: {estimated_remaining_bars} 条，本次获取 {batch_size} 条")
+                print(f"[窗口] 计划窗口: {current_start} -> {end_date}，估算剩余: {estimated_remaining_bars} 条，拟取: {batch_size} 条")
 
                 # 根据batch_size计算需要的时间范围（按工作日推进），分钟周期按每天600分钟估算
                 if freq == 86400:  # 日线
@@ -269,7 +273,7 @@ class DHTqSdk(BaseDataHelper):
                 if backtest_end > end_date:
                     backtest_end = end_date
 
-                print(f"经过计算，回测开始时间定位在{backtest_start}，获取之前的{batch_size}条数据...")
+                print(f"[回测] 回测窗口: {backtest_start} -> {backtest_end}，目标条数: {batch_size} (交易日数估算: {trading_days_needed})")
 
                 try:
                     # 使用回测模式获取历史数据
@@ -302,10 +306,10 @@ class DHTqSdk(BaseDataHelper):
                                 timestamp_s = timestamp_ns / 1000000000
                                 trade_datetime = datetime.fromtimestamp(timestamp_s)
                                 if is_first:
-                                    print("第一条K线的时间", trade_datetime)
+                                    print(f"[数据] 首条K线时间: {trade_datetime}")
                                     is_first = False
                                     if current_start < trade_datetime:
-                                        print("!!!!!!!!!!!!!!第一条数据的时间在current_start之后")
+                                        print(f"[提示] 首条K线时间晚于 current_start: {current_start} -> {trade_datetime}")
 
                                 # 确保在请求的时间范围内
                                 if start_date <= trade_datetime <= end_date:
@@ -313,7 +317,7 @@ class DHTqSdk(BaseDataHelper):
                                     if trade_datetime in existing_datetimes:
                                         continue
                                     if is_first_valid:
-                                        print("第一条有效K线的时间", trade_datetime)
+                                        print(f"[数据] 首条有效K线时间: {trade_datetime}")
                                         is_first_valid = False
                                     date_str = trade_datetime.strftime("%Y-%m-%d")
                                     time_str = '00:00:00' if freq == 86400 else trade_datetime.strftime("%H:%M:%S")
@@ -339,8 +343,8 @@ class DHTqSdk(BaseDataHelper):
                         # 如果获取到数据
                         if current_data:
                             # 追加写入到CSV文件
-                            print(f"追加 {len(current_data)} 条数据到文件 {filepath}...")
-                            print(f"current_data首条时间: {current_data[0]['date'] + ' ' + str(current_data[0]['time'])}, 末条时间: {current_data[-1]['date'] + ' ' + str(current_data[-1]['time'])}")
+                            print(f"[写入] 追加 {len(current_data)} 条 -> {filepath}")
+                            print(f"[范围] 批次首尾: {current_data[0]['date']} {current_data[0]['time']} -> {current_data[-1]['date']} {current_data[-1]['time']}")
                             with open(filepath, "a", encoding="utf-8") as f:
                                 for bar in current_data:
                                     items = [
@@ -365,10 +369,10 @@ class DHTqSdk(BaseDataHelper):
                                 elif freq == 86400:  # 日线
                                     current_start = latest_datetime + timedelta(days=1)
 
-                                print(f"下一次查询开始时间设置为: {current_start}")
+                                print(f"[切换] 下一次查询开始时间 -> {current_start}")
                             else:
                                 # 没有获取到最新时间点，可能表示没有更多数据
-                                print("没有获取到数据，尝试向后移动时间窗口")
+                                print("[切换] 未获取到数据，本次向后滑动时间窗口")
                                 if freq == 60:  # 1分钟
                                     current_start = backtest_end + timedelta(minutes=1)
                                 elif freq == 300:  # 5分钟
@@ -377,19 +381,19 @@ class DHTqSdk(BaseDataHelper):
                                     current_start = backtest_end + timedelta(days=1)
                         else:
                             # 没有数据，向后移动时间窗口
-                            print("此时间段没有数据，向后移动时间窗口")
+                            print("[切换] 此窗口无数据，向后滑动时间窗口")
                             current_start = backtest_end
                 except BacktestFinished:
-                    print("回测完成")
+                    print("[回测] 回测窗口内数据已结束")
                     # 回测结束后，从结束时间后继续
                     current_start = backtest_end
 
                 except Exception as e:
-                    print(f"获取数据时出错: {str(e)}")
-                    # 出错后尝试向后移动时间窗口
-                    print("出现异常，重试")
+                    print(f"[异常] 获取数据出错: {str(e)}")
+                    # 出错后尝试调整窗口重试
+                    print(f"[切换] 调整窗口并重试: {current_start} -3天")
                     current_start = current_start - timedelta(days=3)
-                    time.sleep(3)
+                    sleep_time.sleep(3)
                     # 上面的情况，获取过去的时间刚好是参加期间就报错，比如下面例子：
                     # with TqApi(
                     #         account=TqSim(),
@@ -404,13 +408,12 @@ class DHTqSdk(BaseDataHelper):
                     #         data_length=10000
                     #     )
                     # 后来发现，回测的开始时间和结束时间在非交易日之间就会报错
-
-                print("current_start", current_start)
+                print(f"[状态] current_start = {current_start}\n")
             # 完成一个代码的数据获取
             if existing_datetimes:
-                print(f"完成 {stdCode} 的数据收集，总记录数: {len(existing_datetimes)}")
+                print(f"[完成] {stdCode} 数据收集完成，累计记录: {len(existing_datetimes)} 条")
             else:
-                print(f"没有为 {stdCode} 收集到任何数据")
+                print(f"[完成] {stdCode} 无可收集数据")
 
     def dmpBarsToDB(self, dbHelper: DBHelper, codes: list, start_date: datetime = None, end_date: datetime = None,
                     period: str = "day"):

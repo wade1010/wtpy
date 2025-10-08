@@ -17,13 +17,13 @@ from wtpy.apps.datahelper import DHFactory as DHF
 
 # tqsdk
 hlper = DHF.createHelper("tqsdk")
-hlper.auth(**{"username":"15600097398", "password":"wade1010"})
+hlper.auth(**{"username": "", "password": ""})
 
 # 落地股票列表
 # hlper.dmpCodeListToFile("stocks.json")
 
 # 下载K线数据
-hlper.dmpBarsToFile(folder='./', codes=["CFFEX.IF.HOT"], period='min1',start_date=datetime.datetime(2023,9,1,9,0),end_date=datetime.datetime(2025,9,30,15,0))
+hlper.dmpBarsToFile(folder='./', codes=["CFFEX.IF.HOT"], period='min1', start_date=datetime.datetime(2023, 1, 1, 1, 0), end_date=datetime.datetime(2025, 9, 30, 15, 0))
 # hlper.dmpBarsToFile(folder='./', codes=["CFFEX.IF.HOT","CFFEX.IC.HOT"], period='min5')
 # hlper.dmpBarsToFile(folder='./', codes=["SZSE.399005","SZSE.399006","SZSE.399303"], period='day')
 
@@ -39,7 +39,7 @@ hlper.dmpBarsToFile(folder='./', codes=["CFFEX.IF.HOT"], period='min1',start_dat
 # hlper.dmpAdjFactorsToDB(dbHelper, codes=["SSE.600000",'SSE.600001'])
 
 # 将数据直接落地成dsb
-def on_bars_block(exchg:str, stdCode:str, firstBar:POINTER(WTSBarStruct), count:int, period:str):
+def on_bars_block(exchg: str, stdCode: str, firstBar: POINTER(WTSBarStruct), count: int, period: str):
     from wtpy.wrapper import WtDataHelper
     dtHelper = WtDataHelper()
     if stdCode[-4:] == '.HOT':
