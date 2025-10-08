@@ -19,11 +19,12 @@ from wtpy.apps.datahelper import DHFactory as DHF
 hlper = DHF.createHelper("tqsdk")
 hlper.auth(**{"username": "", "password": ""})
 
+
 # 落地股票列表
 # hlper.dmpCodeListToFile("stocks.json")
 
 # 下载K线数据
-hlper.dmpBarsToFile(folder='./', codes=["CFFEX.IF.HOT"], period='min1', start_date=datetime.datetime(2023, 1, 1, 1, 0), end_date=datetime.datetime(2025, 9, 30, 15, 0))
+# hlper.dmpBarsToFile(folder='./', codes=["CFFEX.IF.HOT"], period='min1', start_date=datetime.datetime(2023, 1, 1, 1, 0), end_date=datetime.datetime(2025, 9, 30, 15, 0))
 # hlper.dmpBarsToFile(folder='./', codes=["CFFEX.IF.HOT","CFFEX.IC.HOT"], period='min5')
 # hlper.dmpBarsToFile(folder='./', codes=["SZSE.399005","SZSE.399006","SZSE.399303"], period='day')
 
@@ -64,4 +65,5 @@ def on_bars_block(exchg: str, stdCode: str, firstBar: POINTER(WTSBarStruct), cou
     dtHelper.store_bars(filename, firstBar, count, period)
     pass
 
-# hlper.dmpBars(codes=["CFFEX.IF.2103"], cb=on_bars_block, start_date=datetime.datetime(2020,12,1), end_date=datetime.datetime(2021,3,16), period="min5")
+
+hlper.dmpBars(codes=["CFFEX.IF.HOT"], cb=on_bars_block, start_date=datetime.datetime(2025, 9, 1), end_date=datetime.datetime(2025, 10, 1), period="min1")

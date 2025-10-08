@@ -162,11 +162,18 @@ class DHTqSdk(BaseDataHelper):
         api.close()
 
     def dmpBarsToFile(self, folder: str, codes: list, start_date: datetime = None, end_date: datetime = None, period="day"):
-        """
+        '''
         改造成回测模式，支持day、min1、min5
         每获取一批数据就追加到CSV文件中
         从前往后获取数据，保证数据顺序正确，适合追加模式写入
-        """
+
+        将K线导出到指定的目录下的csv文件，文件名格式如SSE.600000_d.csv
+        @folder 要输出的文件夹
+        @codes  股票列表，格式如["SSE.600000","SZSE.000001"]
+        @start_date 开始日期，datetime类型，传None则自动设置为1990-01-01
+        @end_date   结束日期，datetime类型，传None则自动设置为当前日期
+        @period K线周期，支持day、min1、min5
+        '''
         from tqsdk import TqSim, TqBacktest
         from tqsdk.exceptions import BacktestFinished
         import os
@@ -266,12 +273,11 @@ class DHTqSdk(BaseDataHelper):
                     raise Exception("不支持的周期，仅支持day、min1、min5")
 
                 end_dt = datetime.combine(end_dt.date(), current_start.time())
-                # 确保不超过用户指定的结束时间
-                backtest_start = min(end_dt, end_date)
+                if end_dt >= end_date:
+                    backtest_start = end_date
+                else:
+                    backtest_start = end_dt
                 backtest_end = backtest_start + timedelta(days=8)  # 这里加8天是确保回测范围不会都在非交易范围内
-                # 若超出用户回测结束时间，则截断
-                if backtest_end > end_date:
-                    backtest_end = end_date
 
                 print(f"[回测] 回测窗口: {backtest_start} -> {backtest_end}，目标条数: {batch_size} (交易日数估算: {trading_days_needed})")
 
@@ -473,61 +479,171 @@ class DHTqSdk(BaseDataHelper):
         api.close()
 
     def dmpBars(self, codes: list, cb, start_date: datetime = None, end_date: datetime = None, period: str = "day"):
-        api = TqApi(auth=TqAuth(self.username, self.password))
+        '''
+        将K线导出到指定的目录下的csv文件，文件名格式如SSE.600000_d.csv
+        @cb     回调函数，格式如cb(exchg:str, code:str, firstBar:POINTER(WTSBarStruct), count:int, period:str)
+        @codes  股票列表，格式如["SSE.600000","SZSE.000001"]
+        @start_date 开始日期，datetime类型，传None则自动设置为1990-01-01
+        @end_date   结束日期，datetime类型，传None则自动设置为当前日期
+        @period K线周期，支持day、min1、min5
+        '''
+        from tqsdk import TqSim, TqBacktest
+        from tqsdk.exceptions import BacktestFinished
+
         if start_date is None:
             start_date = datetime(year=1990, month=1, day=1)
-
         if end_date is None:
             end_date = datetime.now()
 
-        freq = ''
+        # 周期
         if period == 'day':
             freq = 86400
         elif period == 'min5':
             freq = 300
-        elif period == "min1":
+        elif period == 'min1':
             freq = 60
-        elif isinstance(period, int):
-            if (0 < period <= 86400) or period % 86400 == 0:
-                freq = period
-            else:
-                raise Exception("Unrecognized period")
         else:
-            raise Exception("Unrecognized period")
+            raise Exception("不支持的周期，仅支持day、min1、min5")
+
         count = 0
         length = len(codes)
         for stdCode in codes:
             count += 1
-            print(f"Fetching {period} bars of {stdCode}({count}/{length})...")
+            if length > 1:
+                print(f"[任务] 开始获取 {stdCode} 的 {period} K线 ({count}/{length})")
+            else:
+                print(f"[任务] 开始获取 {stdCode} 的 {period} K线")
+
             code = stdCodeToTQ(stdCode)
-            try:
-                df_bars = api.get_kline_data_series(symbol=code, duration_seconds=freq, start_dt=start_date, end_dt=end_date, adj_type=None)
-            except Exception as e:
-                api.close()
-                raise Exception(f"{e}")
-            total_nums = len(df_bars)
-            BUFFER = WTSBarStruct * len(df_bars)
-            buffer = BUFFER()
-            cur_num = 0
-            for idx, row in df_bars.iterrows():
-                curBar = buffer[cur_num]
-                trade_date = datetime.fromtimestamp(row["datetime"] / 1000000000)
-                curBar.date = int(trade_date.strftime("%Y%m%d"))
-                if period == 'day':
-                    curBar.time = 0
+            existing_datetimes = set()
+            current_start = start_date
+
+            while current_start < end_date:
+                # 计算预计剩余条数，用于确定批次大小
+                start_np = np.datetime64(current_start.date(), 'D')
+                end_np = np.datetime64((end_date + timedelta(days=1)).date(), 'D')
+                days_diff = np.busday_count(start_np, end_np)
+
+                if freq == 60:
+                    estimated_remaining_bars = days_diff * 600
+                elif freq == 300:
+                    estimated_remaining_bars = days_diff * 120
+                elif freq == 86400:
+                    estimated_remaining_bars = days_diff + 7
                 else:
-                    curBar.time = int(trade_date.strftime("%H%M")) + (curBar.date - 19900000) * 10000
-                curBar.open = row["open"]
-                curBar.high = row["high"]
-                curBar.low = row["low"]
-                curBar.close = row["close"]
-                curBar.vol = row["volume"]
-                # curBar.money = None
-                # if "open_interest" in row:
-                #     curBar.hold = row["open_interest"]
-                cur_num += 1
-                if cur_num % 500 == 0:
-                    print("Processing bars %d/%d..." % (cur_num, total_nums))
-            ay = stdCode.split(".")
-            cb(ay[0], stdCode, buffer, total_nums, period)
-        api.close()
+                    raise Exception("不支持的周期，仅支持day、min1、min5")
+
+                batch_size = min(10000, int(estimated_remaining_bars))
+                if batch_size <= 100:
+                    batch_size = 100
+
+                print(f"[窗口] 计划窗口: {current_start} -> {end_date}，估算剩余: {estimated_remaining_bars} 条，拟取: {batch_size} 条")
+
+                # 按交易日推进窗口
+                if freq == 86400:
+                    trading_days_needed = int(np.ceil(batch_size))
+                    start_np_d = np.datetime64(current_start.date(), 'D')
+                    end_np_d = np.busday_offset(start_np_d, trading_days_needed, roll='following')
+                    end_dt = datetime.strptime(np.datetime_as_string(end_np_d), "%Y-%m-%d")
+                elif freq == 60:
+                    trading_days_needed = int(np.ceil(batch_size / 250))
+                    start_np_d = np.datetime64(current_start.date(), 'D')
+                    end_np_d = np.busday_offset(start_np_d, trading_days_needed, roll='following')
+                    end_dt = datetime.strptime(np.datetime_as_string(end_np_d), "%Y-%m-%d")
+                elif freq == 300:
+                    trading_days_needed = int(np.ceil(batch_size / 45))
+                    start_np_d = np.datetime64(current_start.date(), 'D')
+                    end_np_d = np.busday_offset(start_np_d, trading_days_needed, roll='following')
+                    end_dt = datetime.strptime(np.datetime_as_string(end_np_d), "%Y-%m-%d")
+                else:
+                    raise Exception("不支持的周期，仅支持day、min1、min5")
+
+                end_dt = datetime.combine(end_dt.date(), current_start.time())
+                if end_dt >= end_date:
+                    backtest_start = end_date
+                else:
+                    backtest_start = end_dt
+                backtest_end = backtest_start + timedelta(days=8)  # 这里加8天是确保回测范围不会都在非交易范围内
+
+                print(f"[回测] 回测窗口: {backtest_start} -> {backtest_end}，目标条数: {batch_size} (交易日数估算: {trading_days_needed})")
+
+                try:
+                    from tqsdk import TqApi
+                    with TqApi(
+                            account=TqSim(),
+                            auth=TqAuth(self.username, self.password),
+                            backtest=TqBacktest(start_dt=backtest_start, end_dt=backtest_end),
+                            disable_print=True
+                    ) as api:
+                        klines = api.get_kline_serial(symbol=code, duration_seconds=freq, data_length=batch_size)
+                        api.wait_update()
+
+                        # 收集并构造成 WTSBarStruct 缓冲
+                        records = []
+                        latest_datetime = None
+                        for i in range(len(klines)):
+                            if klines.iloc[i]['datetime'] > 0:
+                                ts_ns = klines.iloc[i]['datetime']
+                                ts_s = ts_ns / 1000000000
+                                trade_dt = datetime.fromtimestamp(ts_s)
+                                if start_date <= trade_dt <= end_date:
+                                    if trade_dt in existing_datetimes:
+                                        continue
+                                    existing_datetimes.add(trade_dt)
+                                    records.append(klines.iloc[i])
+                                    if latest_datetime is None or trade_dt > latest_datetime:
+                                        latest_datetime = trade_dt
+
+                        if records:
+                            BUFFER = WTSBarStruct * len(records)
+                            buffer = BUFFER()
+                            cur_idx = 0
+                            for row in records:
+                                trade_dt = datetime.fromtimestamp(row['datetime'] / 1000000000)
+                                curBar = buffer[cur_idx]
+                                curBar.date = int(trade_dt.strftime("%Y%m%d"))
+                                if freq == 86400:
+                                    curBar.time = 0
+                                else:
+                                    curBar.time = int(trade_dt.strftime("%H%M")) + (curBar.date - 19900000) * 10000
+                                curBar.open = row['open']
+                                curBar.high = row['high']
+                                curBar.low = row['low']
+                                curBar.close = row['close']
+                                curBar.vol = row['volume']
+                                curBar.hold = row['close_oi']
+                                cur_idx += 1
+
+                            ay = stdCode.split(".")
+                            cb(ay[0], stdCode, buffer, len(records), period)
+
+                            # 推进起始时间
+                            if latest_datetime:
+                                if freq == 60:
+                                    current_start = latest_datetime + timedelta(minutes=1)
+                                elif freq == 300:
+                                    current_start = latest_datetime + timedelta(minutes=5)
+                                elif freq == 86400:
+                                    current_start = latest_datetime + timedelta(days=1)
+                                print(f"[切换] 下一次查询开始时间 -> {current_start}")
+                            else:
+                                # 无最新时间，按窗口滑动
+                                if freq == 60:
+                                    current_start = backtest_end + timedelta(minutes=1)
+                                elif freq == 300:
+                                    current_start = backtest_end + timedelta(minutes=5)
+                                elif freq == 86400:
+                                    current_start = backtest_end + timedelta(days=1)
+                        else:
+                            # 此窗口无数据，直接滑动
+                            current_start = backtest_end
+                except BacktestFinished:
+                    print("[回测] 回测窗口内数据已结束")
+                    current_start = backtest_end
+                except Exception as e:
+                    print(f"[异常] 获取数据出错: {str(e)}")
+                    print(f"[切换] 调整窗口并重试: {current_start} -3天")
+                    current_start = current_start - timedelta(days=3)
+                    sleep_time.sleep(3)
+
+                print(f"[状态] current_start = {current_start}\n")
