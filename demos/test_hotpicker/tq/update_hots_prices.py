@@ -54,6 +54,10 @@ class HotsPriceUpdater:
             self.hots_file_path = current_dir.parent.parent / "common" / "hots.json"
 
         self.logger = self._setup_logger()
+        
+        # 缓存系统
+        self.cache_file = current_dir / "price_cache.json"
+        self.price_cache = self._load_cache()
 
     def _setup_logger(self) -> logging.Logger:
         """设置日志记录器"""
@@ -69,6 +73,38 @@ class HotsPriceUpdater:
             logger.addHandler(handler)
 
         return logger
+
+    def _load_cache(self) -> Dict:
+        """加载价格缓存"""
+        try:
+            if self.cache_file.exists():
+                with open(self.cache_file, 'r', encoding='utf-8') as f:
+                    cache = json.load(f)
+                    self.logger.info(f"已加载价格缓存，包含 {len(cache)} 条记录")
+                    return cache
+        except Exception as e:
+            self.logger.warning(f"加载缓存失败: {e}")
+        return {}
+
+    def _save_cache(self):
+        """保存价格缓存"""
+        try:
+            with open(self.cache_file, 'w', encoding='utf-8') as f:
+                json.dump(self.price_cache, f, ensure_ascii=False, indent=2)
+            self.logger.debug(f"已保存价格缓存到 {self.cache_file}")
+        except Exception as e:
+            self.logger.error(f"保存缓存失败: {e}")
+
+    def _get_cache_key_two_prices(self, exchange: str, to_contract: str, current_date: datetime, target_date: datetime) -> str:
+        """生成成对价格获取的缓存key"""
+        current_date_str = current_date.strftime('%Y%m%d')
+        target_date_str = target_date.strftime('%Y%m%d')
+        return f"two_prices:{exchange}:{to_contract}:{current_date_str}:{target_date_str}"
+
+    def _get_cache_key_single_price(self, exchange: str, contract: str, date: datetime) -> str:
+        """生成单个价格获取的缓存key"""
+        date_str = date.strftime('%Y%m%d')
+        return f"single_price:{exchange}:{contract}:{date_str}"
 
     def load_hots_json(self) -> Dict:
         """加载现有的hots.json文件"""
@@ -152,6 +188,12 @@ class HotsPriceUpdater:
                     # 倒序遍历K线数据，同时查找两个目标价格
                     for i in range(len(klines) - 1, -1, -1):
                         kline_time = datetime.fromtimestamp(klines.iloc[i]['datetime'] / 1000000000)
+                        
+                        # 如果时间在1990年之前，停止查找
+                        if kline_time.year < 1990:
+                            self.logger.info(f"  遇到1990年之前的数据 ({kline_time.strftime('%Y-%m-%d')})，停止查找")
+                            break
+                            
                         close_price = klines.iloc[i]['close']
 
                         # 查找第i+1条的oldclose (第一个小于next_date的)
@@ -176,7 +218,7 @@ class HotsPriceUpdater:
 
         except Exception as e:
             self.logger.error(f"回测获取价格失败: {e}")
-            return None, None
+            return 0, 0
 
     def update_contract_prices(self, exchange: str, product: str, contracts: List[Dict]) -> List[Dict]:
         """
@@ -196,10 +238,13 @@ class HotsPriceUpdater:
             更新后的合约列表
         """
         updated_contracts = []
+        total_pairs = len(contracts) - 1  # 需要处理的合约对数量
 
         # 初始化所有合约记录
         for contract in contracts:
             updated_contracts.append(contract.copy())
+
+        self.logger.info(f"开始处理 {exchange}.{product}，共 {len(contracts)} 条记录，需处理 {total_pairs} 对合约")
 
         # 第0条记录不需要更新oldclose
         if len(updated_contracts) > 0:
@@ -221,42 +266,54 @@ class HotsPriceUpdater:
                 next_date_int = next_contract['date']
                 target_date = self.date_to_datetime(next_date_int)
 
-                self.logger.info(f"处理 {exchange}.{product} 第 {i}/{i + 1} 对记录，回测日期: {next_date_int}")
-                self.logger.info(f"  第{i}条 to: '{current_contract['to']}'")
-                self.logger.info(f"  第{i + 1}条 from: '{next_contract['from']}'")
+                pair_progress = ((i + 1) / total_pairs * 100) if total_pairs > 0 else 0
+                self.logger.info(f"  [{i + 1}/{total_pairs}] ({pair_progress:.1f}%) 处理第 {i}/{i + 1} 对记录，回测日期: {next_date_int}")
+                self.logger.info(f"    第{i}条 to: '{current_contract['to']}'")
+                self.logger.info(f"    第{i + 1}条 from: '{next_contract['from']}'")
 
                 # 在一次回测中同时获取两个价格
                 to_contract = current_contract['to']
                 from_contract = next_contract['from']
                 current_date = self.date_to_datetime(current_contract['date'])
 
-                # 使用新的合并回测方法，只传入to_contract
-                newclose, oldclose = self.get_two_close_prices_by_backtest(
-                    exchange,
-                    to_contract,  # 合约代码
-                    current_date,  # 第i条的日期
-                    target_date,  # 第i+1条的日期
-                    target_date  # 回测开始时间使用第i+1条的日期
-                )
+                # 检查缓存
+                cache_key = self._get_cache_key_two_prices(exchange, to_contract, current_date, target_date)
+                if cache_key in self.price_cache:
+                    newclose, oldclose = self.price_cache[cache_key]
+                    self.logger.info(f"    从缓存获取价格: newclose={newclose}, oldclose={oldclose}")
+                else:
+                    # 使用新的合并回测方法，只传入to_contract
+                    newclose, oldclose = self.get_two_close_prices_by_backtest(
+                        exchange,
+                        to_contract,  # 合约代码
+                        current_date,  # 第i条的日期
+                        target_date,  # 第i+1条的日期
+                        target_date  # 回测开始时间使用第i+1条的日期
+                    )
+                    # 保存到缓存
+                    if newclose is not None and oldclose is not None:
+                        self.price_cache[cache_key] = [newclose, oldclose]
+                        self._save_cache()
+                        self.logger.info(f"    已缓存价格: newclose={newclose}, oldclose={oldclose}")
 
                 # 更新第i条的newclose
                 if to_contract != "":
                     if newclose is not None:
                         updated_contracts[i]['newclose'] = newclose
-                        self.logger.info(f"  成功更新第{i}条newclose: {newclose}")
+                        self.logger.info(f"    成功更新第{i}条newclose: {newclose}")
                     else:
-                        self.logger.warning(f"  无法获取 {to_contract} 的收盘价，保持原值")
+                        self.logger.warning(f"    无法获取 {to_contract} 的收盘价，保持原值")
 
                 # 更新第i+1条的oldclose
                 if from_contract != "":
                     if oldclose is not None:
                         updated_contracts[i + 1]['oldclose'] = oldclose
-                        self.logger.info(f"  成功更新第{i + 1}条oldclose: {oldclose}")
+                        self.logger.info(f"    成功更新第{i + 1}条oldclose: {oldclose}")
                     else:
-                        self.logger.warning(f"  无法获取 {from_contract} 的收盘价，保持原值")
+                        self.logger.warning(f"    无法获取 {from_contract} 的收盘价，保持原值")
                 else:
                     updated_contracts[i + 1]['oldclose'] = 0.0
-                    self.logger.info(f"  第{i + 1}条from为空，oldclose设为0.0")
+                    self.logger.info(f"    第{i + 1}条from为空，oldclose设为0.0")
 
             except Exception as e:
                 self.logger.error(f"处理第 {i}/{i + 1} 对记录失败: {e}")
@@ -269,15 +326,28 @@ class HotsPriceUpdater:
             if last_contract['newclose'] == 0:
                 to_contract = last_contract.get('to')
                 last_date = self.date_to_datetime(last_contract['date'])
-                self.logger.info(f"最后一条记录的newclose为空，单独获取 {to_contract} 的收盘价")
+                self.logger.info(f"  最后一条记录的newclose为空，单独获取 {to_contract} 的收盘价")
 
-                newclose = self.get_close_price_by_backtest(exchange, to_contract, last_date)
+                # 检查缓存
+                cache_key = self._get_cache_key_single_price(exchange, to_contract, last_date)
+                if cache_key in self.price_cache:
+                    newclose = self.price_cache[cache_key]
+                    self.logger.info(f"  从缓存获取最后一条记录的价格: {newclose}")
+                else:
+                    newclose = self.get_close_price_by_backtest(exchange, to_contract, last_date)
+                    # 保存到缓存
+                    if newclose is not None:
+                        self.price_cache[cache_key] = newclose
+                        self._save_cache()
+                        self.logger.info(f"  已缓存最后一条记录的价格: {newclose}")
+                
                 if newclose is not None:
                     updated_contracts[-1]['newclose'] = newclose
-                    self.logger.info(f"成功更新最后一条记录的newclose: {newclose}")
+                    self.logger.info(f"  成功更新最后一条记录的newclose: {newclose}")
                 else:
-                    self.logger.warning(f"无法获取最后一条记录 {to_contract} 的收盘价")
+                    self.logger.warning(f"  无法获取最后一条记录 {to_contract} 的收盘价")
 
+        self.logger.info(f"完成 {exchange}.{product} 价格更新，共处理 {len(contracts)} 条记录")
         return updated_contracts
 
     def get_close_price_by_backtest(self, exchange: str, contract: str, target_date: datetime) -> Optional[float]:
@@ -323,6 +393,11 @@ class HotsPriceUpdater:
                     for i in range(len(klines) - 1, -1, -1):
                         try:
                             kline_datetime = datetime.fromtimestamp(klines.iloc[i]['datetime'] / 1000000000)
+                            
+                            # 如果时间在1990年之前，停止查找
+                            if kline_datetime.year < 1990:
+                                self.logger.info(f"遇到1990年之前的数据 ({kline_datetime.strftime('%Y-%m-%d')})，停止查找")
+                                break
 
                             # 如果K线时间小于目标日期，使用这个收盘价
                             if kline_datetime < target_date:
@@ -336,14 +411,14 @@ class HotsPriceUpdater:
                             continue
 
                 self.logger.warning(f"未找到 {full_contract} 在 {target_date_str} 附近的有效数据")
-                return None
+                return 0
 
             finally:
                 api.close()
 
         except Exception as e:
             self.logger.error(f"获取 {exchange}.{contract} 在 {target_date} 的收盘价失败: {e}")
-            return None
+            return 0
 
     def update_all_prices(self, exchanges: List[str] = None, products: List[str] = None) -> bool:
         """
@@ -366,7 +441,20 @@ class HotsPriceUpdater:
             updated_count = 0
             total_count = 0
 
+            # 先统计总数
+            for exchange, exchange_data in hots_data.items():
+                if exchanges and exchange not in exchanges:
+                    continue
+                for product, contracts in exchange_data.items():
+                    if products and product not in products:
+                        continue
+                    if contracts:
+                        total_count += 1
+
+            self.logger.info(f"开始更新价格数据，共需处理 {total_count} 个品种")
+
             # 遍历所有交易所和品种
+            current_index = 0
             for exchange, exchange_data in hots_data.items():
                 if exchanges and exchange not in exchanges:
                     continue
@@ -378,16 +466,17 @@ class HotsPriceUpdater:
                     if not contracts:
                         continue
 
-                    total_count += 1
-                    self.logger.info(f"正在更新 {exchange}.{product} 的价格数据...")
+                    current_index += 1
+                    progress_percent = (current_index / total_count * 100) if total_count > 0 else 0
+                    self.logger.info(f"[{current_index}/{total_count}] ({progress_percent:.1f}%) 正在更新 {exchange}.{product} 的价格数据...")
 
                     try:
                         updated_contracts = self.update_contract_prices(exchange, product, contracts)
                         hots_data[exchange][product] = updated_contracts
                         updated_count += 1
-                        self.logger.info(f"成功更新 {exchange}.{product}")
+                        self.logger.info(f"[{current_index}/{total_count}] 成功更新 {exchange}.{product}")
                     except Exception as e:
-                        self.logger.error(f"更新 {exchange}.{product} 失败: {e}")
+                        self.logger.error(f"[{current_index}/{total_count}] 更新 {exchange}.{product} 失败: {e}")
                         continue
 
             # 保存更新后的数据
