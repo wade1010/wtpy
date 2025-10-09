@@ -15,3 +15,4 @@ baostock==0.8.9
 tqdm==4.67.1
 tqsdk==3.8.6
 statsmodels==0.14.0
+python-dotenv==1.1.1
