@@ -10135,10 +10135,6 @@
     2398.0,
     2300.0
   ],
-  "two_prices:CZCE:WH509:20250410:20250808": [
-    NaN,
-    NaN
-  ],
   "two_prices:CZCE:SH405:20230915:20240429": [
     NaN,
     2358.0
@@ -10170,10 +10166,6 @@
   "two_prices:CZCE:PM107:20210414:20210715": [
     2446.0,
     2510.0
-  ],
-  "two_prices:CZCE:PM209:20220317:20220426": [
-    NaN,
-    NaN
   ],
   "two_prices:CZCE:CY001:20190415:20191203": [
     NaN,
@@ -10311,25 +10303,5 @@
   "single_price:CZCE:PR512:20251010": 5748.0,
   "single_price:CZCE:MA601:20250815": 2435.0,
   "single_price:CZCE:CJ601:20250703": 11055.0,
-  "single_price:CZCE:RS511:20250903": 5059.0,
-  "two_prices:CZCE:ZC305:20230104:20230407": [
-    0,
-    0
-  ],
-  "two_prices:CZCE:ZC309:20230407:20230725": [
-    0,
-    0
-  ],
-  "two_prices:CZCE:ZC401:20230725:20231128": [
-    0,
-    0
-  ],
-  "two_prices:CZCE:ZC405:20231128:20240319": [
-    0,
-    0
-  ],
-  "two_prices:CZCE:ZC409:20240319:20240812": [
-    0,
-    0
-  ]
+  "single_price:CZCE:RS511:20250903": 5059.0
 }
