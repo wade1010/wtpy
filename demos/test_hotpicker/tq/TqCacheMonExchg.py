@@ -310,7 +310,32 @@ class TqHotContractUpdater:
                         existing_data = hots_data[exchange][product]
 
                         if not existing_data:
-                            # 如果没有现有数据，直接使用新数据
+                            # 如果没有现有数据，检查第一条记录的日期
+                            if product_hots:
+                                first_record = product_hots[0]
+                                first_date = first_record.get('date')
+                                if first_date:
+                                    # 将日期转换为datetime对象
+                                    try:
+                                        if isinstance(first_date, int):
+                                            # 处理YYYYMMDD格式的整数日期
+                                            date_str = str(first_date)
+                                            first_datetime = datetime.strptime(date_str, '%Y%m%d')
+                                        else:
+                                            # 处理其他格式
+                                            first_datetime = pd.to_datetime(first_date)
+
+                                        # 计算3年前的日期
+                                        three_years_ago = datetime.now() - timedelta(days=7 * 365)
+
+                                        # 如果第一条记录的日期在3年之前，删除它
+                                        if first_datetime < three_years_ago:
+                                            product_hots = product_hots[1:]  # 删除第一条记录
+                                            self.logger.info(f"{exchange}.{product} 删除了过期的第一条记录 (日期: {first_date})")
+                                    except Exception as e:
+                                        self.logger.warning(f"{exchange}.{product} 解析第一条记录日期失败: {e}")
+
+                            # 使用处理后的数据
                             hots_data[exchange][product] = product_hots
                             updated_count += 1
                             self.logger.info(f"{exchange}.{product} 新增 {len(product_hots)} 条主力合约记录")
@@ -427,7 +452,31 @@ class TqHotContractUpdater:
                     existing_data = hots_data[exchange][product]
 
                     if not existing_data:
-                        # 如果没有现有数据，直接使用新数据
+                        # 如果没有现有数据，检查新数据的第一条记录是否过期
+                        if product_hots:
+                            first_record = product_hots[0]
+                            first_date = first_record.get('date')
+                            if first_date:
+                                try:
+                                    if isinstance(first_date, int):
+                                        # 处理YYYYMMDD格式的整数日期
+                                        date_str = str(first_date)
+                                        first_datetime = datetime.strptime(date_str, '%Y%m%d')
+                                    else:
+                                        # 处理其他格式
+                                        first_datetime = pd.to_datetime(first_date)
+
+                                    # 计算3年前的日期
+                                    three_years_ago = datetime.now() - timedelta(days=7 * 365)
+
+                                    # 如果第一条记录的日期在3年之前，删除它
+                                    if first_datetime < three_years_ago:
+                                        product_hots = product_hots[1:]  # 删除第一条记录
+                                        self.logger.info(f"{exchange}.{product} 删除了过期的第一条记录 (日期: {first_date})")
+                                except Exception as e:
+                                    self.logger.warning(f"{exchange}.{product} 解析第一条记录日期失败: {e}")
+
+                        # 使用处理后的数据
                         hots_data[exchange][product] = product_hots
                         updated_count += 1
                         self.logger.info(f"{exchange}.{product} 新增 {len(product_hots)} 条主力合约记录")
