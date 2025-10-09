@@ -49,8 +49,8 @@ class TqHotContractUpdater:
         if hots_file_path:
             self.hots_file_path = Path(hots_file_path)
         else:
-            # 默认路径为相对于当前脚本的../common/hots.json
-            current_dir = Path(__file__).parent
+            # 默认路径为相对于当前脚本的../../common/hots.json
+            current_dir = Path(__file__).parent.parent
             self.hots_file_path = current_dir.parent / "common" / "hots.json"
 
         self.api = None

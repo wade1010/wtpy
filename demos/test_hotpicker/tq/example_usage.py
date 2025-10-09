@@ -15,7 +15,7 @@ def example_update_all():
 
     updater = TqHotContractUpdater()
 
-    success = updater.update_all_hots(days=1000)  # 获取最近1000天的数据
+    success = updater.update_all_hots(days=1700)  # 获取最近1000天的数据
 
     if success:
         print("✅ 所有主力合约数据更新成功！")
