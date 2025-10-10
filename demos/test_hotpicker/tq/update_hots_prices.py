@@ -181,7 +181,7 @@ class HotsPriceUpdater:
                 next_price = None  # 第i+1条的oldclose
 
                 # 获取K线数据
-                klines = api.get_kline_serial(full_contract, duration_seconds=24 * 60 * 60)
+                klines = api.get_kline_serial(full_contract, duration_seconds=24 * 60 * 60, data_length=300)
                 api.wait_update()
 
                 if len(klines) > 0:
@@ -191,6 +191,12 @@ class HotsPriceUpdater:
 
                         # 如果时间在1990年之前，停止查找
                         if kline_time.year < 1990:
+                            if current_price is None and next_price > 0:
+                                kline_time = datetime.fromtimestamp(klines.iloc[i + 1]['datetime'] / 1000000000)
+                                if kline_time.date() == current_date.date():
+                                    current_price = klines.iloc[i + 1]['close']
+                                    self.logger.info(f"  合约 {full_contract},是历史上第一个主力合约,所以使用第一个有效交易日收盘价作为newclose，找到第i条newclose: {current_price} (日期: {kline_time.strftime('%Y-%m-%d')})")
+                                    return current_price, next_price
                             self.logger.info(f"  遇到1990年之前的数据 ({kline_time.strftime('%Y-%m-%d')})，停止查找")
                             return None, None
 
@@ -277,13 +283,26 @@ class HotsPriceUpdater:
                 from_contract = next_contract['from']
                 current_date = self.date_to_datetime(current_contract['date'])
 
+                full_contract = f"{exchange}.{to_contract}"
                 # 检查缓存
                 cache_key = self._get_cache_key_two_prices(exchange, to_contract, current_date, target_date)
                 if cache_key in self.price_cache:
                     newclose, oldclose = self.price_cache[cache_key]
                     self.logger.info(f"    从缓存获取价格: newclose={newclose}, oldclose={oldclose}")
+                    # if i == 0 and newclose == 0.0:
+                    #     newclose, oldclose = self.get_two_close_prices_by_backtest(
+                    #         exchange,
+                    #         to_contract,  # 合约代码
+                    #         current_date,  # 第i条的日期
+                    #         target_date,  # 第i+1条的日期
+                    #         target_date  # 回测开始时间使用第i+1条的日期
+                    #     )
+                    #     # 保存到缓存
+                    #     if newclose != 0.0 and oldclose != 0.0:
+                    #         self.price_cache[cache_key] = [newclose, oldclose]
+                    #         self._save_cache()
+                    #         self.logger.info(f"    已缓存价格: newclose={newclose}, oldclose={oldclose}")
                 else:
-                    full_contract = f"{exchange}.{to_contract}"
                     if full_contract in bad_contract_list:
                         self.logger.info(f"{full_contract},该合约经过多次验证，获取不到信息，收盘价置为0")
                         is_bad_contract = True
@@ -364,6 +383,36 @@ class HotsPriceUpdater:
                         self.logger.info(f"  成功更新最后一条记录的newclose: {newclose}")
                     else:
                         self.logger.warning(f"  无法获取最后一条记录 {to_contract} 的收盘价")
+        elif len(updated_contracts) == 1:
+            # 刚刚上市的品种，目前只出现一个合约，获取第一个交易日收盘价
+            last_contract = updated_contracts[-1]
+            if last_contract['newclose'] == 0.0:
+                to_contract = last_contract.get('to')
+                full_contract = f"{exchange}.{to_contract}"
+                last_date = self.date_to_datetime(last_contract['date'])
+                self.logger.info(f"  刚刚上市的品种，目前只出现一个合约，记录的newclose为空，单独获取 {to_contract} 第一个交易日收盘价")
+                # 检查缓存
+                cache_key = self._get_cache_key_single_price(exchange, to_contract, last_date)
+                if cache_key in self.price_cache:
+                    newclose = self.price_cache[cache_key]
+                    self.logger.info(f"  从缓存获取最后一条记录的价格: {newclose}")
+                else:
+                    newclose = self.get_first_valid_price_by_backtest(exchange, to_contract, last_date)
+                    if newclose is None:
+                        full_contract = f"{exchange}.{to_contract}"
+                        self.logger.info(f"{full_contract}！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！！")
+                        newclose = 0.0
+                    # 保存到缓存
+                    if newclose != 0.0:
+                        self.price_cache[cache_key] = newclose
+                        self._save_cache()
+                        self.logger.info(f"  已缓存最后一条记录的价格: {newclose}")
+
+                if newclose is not None:
+                    updated_contracts[-1]['newclose'] = newclose
+                    self.logger.info(f"  成功更新最后一条记录的newclose: {newclose}")
+                else:
+                    self.logger.warning(f"  无法获取最后一条记录 {to_contract} 的收盘价")
 
         self.logger.info(f"完成 {exchange}.{product} 价格更新，共处理 {len(contracts)} 条记录")
         return updated_contracts
@@ -436,6 +485,71 @@ class HotsPriceUpdater:
 
         except Exception as e:
             self.logger.error(f"获取 {exchange}.{contract} 在 {target_date} 的收盘价失败: {e}")
+            return None
+
+    def get_first_valid_price_by_backtest(self, exchange: str, contract: str, last_date: datetime) -> Optional[float]:
+        """
+        通过回测获取指定合约的第一个有效价格（>0）
+        回测开始时间为last_date+8天，结束时间为开始时间+8天
+        正序遍历K线数据，返回第一个价格>0的结果
+
+        Args:
+            exchange: 交易所代码
+            contract: 合约代码
+            last_date: 基准日期
+
+        Returns:
+            第一个有效价格，如果获取失败返回None
+        """
+        try:
+            # 计算回测开始和结束时间
+            # 回测开始时间为last_date+8天，结束时间为开始时间+8天
+            start_date = last_date + timedelta(days=8)
+            end_date = start_date + timedelta(days=8)
+
+            # 构造完整的合约代码
+            full_contract = f"{exchange}.{contract}"
+
+            self.logger.info(f"正在获取 {full_contract} 从 {start_date.strftime('%Y-%m-%d')} 开始的第一个有效价格...")
+
+            # 创建回测API
+            api = TqApi(
+                auth=TqAuth(self.username, self.password),
+                backtest=TqBacktest(start_dt=start_date, end_dt=end_date),
+                disable_print=True
+            )
+
+            try:
+                # 获取K线数据
+                klines = api.get_kline_serial(full_contract, duration_seconds=24 * 60 * 60)
+                # 等待数据更新
+                api.wait_update()
+
+                start_date_str = start_date.strftime('%Y-%m-%d')
+                # 转换K线数据为DataFrame以便处理
+                if len(klines) > 0:
+                    # 正序遍历K线数据，查找第一个价格>0的收盘价
+                    for i in range(len(klines)):
+                        try:
+                            # 获取收盘价
+                            close_price = klines.iloc[i]['close']
+                            if close_price > 0:  # 找到第一个有效价格
+                                kline_datetime = datetime.fromtimestamp(klines.iloc[i]['datetime'] / 1000000000)
+                                kline_date_str = kline_datetime.strftime('%Y-%m-%d')
+                                self.logger.info(f"成功获取 {full_contract} 第一个有效价格: {close_price} (日期: {kline_date_str})")
+                                return float(close_price)
+                        except Exception as e:
+                            self.logger.debug(f"处理K线数据第{i}条时出错: {e}")
+                            continue
+
+                self.logger.warning(f"未找到 {full_contract} 从 {start_date_str} 开始的有效价格数据")
+                return 0.0
+
+            finally:
+                api.close()
+
+        except Exception as e:
+            self.logger.error(f"获取 {exchange}.{contract} 从 {last_date + timedelta(days=8)} 开始的第一个有效价格失败: {e}")
             return None
 
     def update_all_prices(self, exchanges: List[str] = None, products: List[str] = None) -> bool:

@@ -105,4 +105,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # example_update_specific_product()
+    example_update_all()

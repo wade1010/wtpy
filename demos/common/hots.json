@@ -353,7 +353,7 @@
       {
         "date": 20190809,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 1702.0,
         "oldclose": 0.0,
         "to": "UR001"
       },
@@ -793,7 +793,7 @@
       {
         "date": 20240830,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 6600.0,
         "oldclose": 0.0,
         "to": "PR503"
       },
@@ -1000,7 +1000,7 @@
       {
         "date": 20190430,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 8840.0,
         "oldclose": 0.0,
         "to": "CJ912"
       },
@@ -1461,7 +1461,7 @@
       {
         "date": 20230915,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 9468.0,
         "oldclose": 0.0,
         "to": "PX405"
       },
@@ -2362,7 +2362,7 @@
       {
         "date": 20230915,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 2859.0,
         "oldclose": 0.0,
         "to": "SH405"
       },
@@ -2676,7 +2676,7 @@
       {
         "date": 20201012,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 5832.0,
         "oldclose": 0.0,
         "to": "PF105"
       },
@@ -3107,7 +3107,7 @@
       {
         "date": 20191206,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 1561.0,
         "oldclose": 0.0,
         "to": "SA005"
       },
@@ -3235,7 +3235,7 @@
       {
         "date": 20210201,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 10504.0,
         "oldclose": 0.0,
         "to": "PK110"
       },
@@ -4530,7 +4530,7 @@
       {
         "date": 20181127,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 5382.0,
         "oldclose": 0.0,
         "to": "sp1906"
       },
@@ -6845,7 +6845,7 @@
       {
         "date": 20190925,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 15575.0,
         "oldclose": 0.0,
         "to": "ss2002"
       },
@@ -7766,7 +7766,7 @@
       {
         "date": 20230728,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 10755.0,
         "oldclose": 0.0,
         "to": "br2401"
       },
@@ -9222,7 +9222,7 @@
       {
         "date": 20230619,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 2721.0,
         "oldclose": 0.0,
         "to": "ao2311"
       },
@@ -9350,7 +9350,7 @@
       {
         "date": 20250610,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 19190.0,
         "oldclose": 0.0,
         "to": "ad2511"
       },
@@ -9517,7 +9517,7 @@
       {
         "date": 20241226,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 41570.0,
         "oldclose": 0.0,
         "to": "ps2506"
       },
@@ -9554,7 +9554,7 @@
       {
         "date": 20230721,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 215100.0,
         "oldclose": 0.0,
         "to": "lc2401"
       },
@@ -9612,7 +9612,7 @@
       {
         "date": 20221222,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 18310.0,
         "oldclose": 0.0,
         "to": "si2308"
       },
@@ -10720,7 +10720,7 @@
       {
         "date": 20241118,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 764.0,
         "oldclose": 0.0,
         "to": "lg2507"
       },
@@ -11400,7 +11400,7 @@
       {
         "date": 20181210,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 5674.0,
         "oldclose": 0.0,
         "to": "eg1906"
       },
@@ -11549,7 +11549,7 @@
       {
         "date": 20190926,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 8056.0,
         "oldclose": 0.0,
         "to": "eb2005"
       },
@@ -13066,7 +13066,7 @@
       {
         "date": 20210108,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 26810.0,
         "oldclose": 0.0,
         "to": "lh2109"
       },
@@ -13215,7 +13215,7 @@
       {
         "date": 20190816,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 3685.0,
         "oldclose": 0.0,
         "to": "rr2001"
       },
@@ -14245,7 +14245,7 @@
       {
         "date": 20200330,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 2366.0,
         "oldclose": 0.0,
         "to": "pg2011"
       },
@@ -15231,7 +15231,7 @@
       {
         "date": 20230818,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 916.3,
         "oldclose": 0.0,
         "to": "ec2404"
       },
@@ -15310,7 +15310,7 @@
       {
         "date": 20200622,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 2599.0,
         "oldclose": 0.0,
         "to": "lu2101"
       },
@@ -15725,7 +15725,7 @@
       {
         "date": 20190812,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 9820.0,
         "oldclose": 0.0,
         "to": "nr2002"
       },
@@ -16210,7 +16210,7 @@
       {
         "date": 20201119,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 47090.0,
         "oldclose": 0.0,
         "to": "bc2103"
       },
@@ -16613,7 +16613,7 @@
       {
         "date": 20230421,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 96.21,
         "oldclose": 0.0,
         "to": "TL2306"
       },
@@ -17261,7 +17261,7 @@
       {
         "date": 20220722,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 6956.6,
         "oldclose": 0.0,
         "to": "IM2208"
       },
