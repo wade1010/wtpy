@@ -1,0 +1,11 @@
+parsers:
+  - active: true
+    broker: '8888'
+    code: 'SHFE.au2512,CFFEX.IF2510'
+    front: tcp://140.207.239.178:43174
+    id: parser
+    module: ParserCTP
+    user: '371268'
+    pass: 'wade1010'
+    # 如果要使用openctp，启用该配置项即可
+    # ctpmodule: tts_thostmduserapi_se
