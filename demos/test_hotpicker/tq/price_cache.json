@@ -10341,15 +10341,15 @@
   "single_price:DCE:cs2511:20250820": 2480.0,
   "single_price:DCE:lg2511:20250826": 820.0,
   "single_price:DCE:c2511:20250815": 2202.0,
-  "two_prices:CZCE:WH303:20220505:20230303": [
-    null,
-    3050.0
-  ],
   "single_price:CZCE:PL601:20250722": 6613.0,
   "single_price:SHFE:op2601:20250910": 4208.0,
   "single_price:DCE:bz2603:20250708": 5931.0,
   "two_prices:CZCE:UR001:20190809:20191213": [
     1702.0,
     1717.0
+  ],
+  "two_prices:CZCE:WH303:20220505:20230303": [
+    3324.0,
+    3050.0
   ]
 }
