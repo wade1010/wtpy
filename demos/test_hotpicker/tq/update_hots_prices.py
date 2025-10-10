@@ -262,7 +262,8 @@ class HotsPriceUpdater:
             updated_contracts[-1]['newclose'] = 0.0
             self.logger.info(f"最后一条记录，newclose设为0.0")
         is_bad_contract = False
-        bad_contract_list = ['CZCE.ZC305', 'CZCE.WH305', 'CZCE.LR109', 'CZCE.JR201', 'CZCE.PM205', 'CZCE.RI109', 'CZCE.RI205', 'SHFE.op2601', 'DCE.bz2603']
+        # 一些退市的、不活跃的  [郑煤,强麦,晚稻,粳稻,普麦,早稻,]
+        bad_contract_list = ['CZCE.ZC305', 'CZCE.WH305', 'CZCE.LR109', 'CZCE.JR201', 'CZCE.PM205', 'CZCE.RI109']
         # 成对处理中间的记录，减少回测次数
         for i in range(len(contracts) - 1):
             try:
