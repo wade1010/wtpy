@@ -1,35 +1,35 @@
 FD0900:
-    closetime: 1515
-    inittime: 850
-    name: ÆÚ°×0900
-    proctime: 1600
+  closetime: 1515
+  inittime: 850
+  name: ï¿½Ú°ï¿½0900
+  proctime: 1520
 FD0915:
-    closetime: 1530
-    inittime: 900
-    name: ÆÚ°×0915
-    proctime: 1600
+  closetime: 1530
+  inittime: 900
+  name: ï¿½Ú°ï¿½0915
+  proctime: 1520
 FN0100:
-    closetime: 1515
-    inittime: 2050
-    name: ÆÚÒ¹0100
-    proctime: 1600
+  closetime: 1515
+  inittime: 2050
+  name: ï¿½ï¿½Ò¹0100
+  proctime: 1520
 FN0230:
-    closetime: 1515
-    inittime: 2050
-    name: ÆÚÒ¹0230
-    proctime: 1600
+  closetime: 1515
+  inittime: 2050
+  name: ï¿½ï¿½Ò¹0230
+  proctime: 1520
 FN2300:
-    closetime: 1515
-    inittime: 2050
-    name: ÆÚÒ¹2300
-    proctime: 1600
+  closetime: 1515
+  inittime: 2050
+  name: ï¿½ï¿½Ò¹2300
+  proctime: 1520
 FN2330:
-    closetime: 1515
-    inittime: 2050
-    name: ÆÚÒ¹2330
-    proctime: 1600
+  closetime: 1515
+  inittime: 2050
+  name: ï¿½ï¿½Ò¹2330
+  proctime: 1520
 SD0930:
-    closetime: 1515
-    inittime: 915
-    name: ¹É°×0930
-    proctime: 1600
+  closetime: 1515
+  inittime: 915
+  name: ï¿½É°ï¿½0930
+  proctime: 1520
