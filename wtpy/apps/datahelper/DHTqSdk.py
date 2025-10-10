@@ -2,7 +2,8 @@ import numpy as np
 
 from wtpy.apps.datahelper.DHDefs import BaseDataHelper, DBHelper
 from wtpy.WtCoreDefs import WTSBarStruct
-from tqsdk import TqApi, TqAuth
+from tqsdk import TqApi, TqAuth, TqSim, TqBacktest
+from tqsdk.exceptions import BacktestFinished
 from datetime import datetime, timedelta
 import time as sleep_time
 import json
@@ -176,9 +177,6 @@ class DHTqSdk(BaseDataHelper):
         @end_date   结束日期，datetime类型，传None则自动设置为当前日期
         @period K线周期，支持day、min1、min5
         '''
-        from tqsdk import TqSim, TqBacktest
-        from tqsdk.exceptions import BacktestFinished
-        import os
         if start_date is None:
             start_date = datetime(year=1990, month=1, day=1)
         if end_date is None:
@@ -366,7 +364,9 @@ class DHTqSdk(BaseDataHelper):
                                         str(bar["open_interest"])
                                     ]
                                     f.write(','.join(items) + "\n")
-
+                            if backtest_start == end_date:
+                                print("[回测] 回测开始时间等于截止时间，回测窗口内数据已结束")
+                                break
                             # 设置下一次查询的开始时间
                             if latest_datetime:
                                 # 根据频率设置下一次查询的开始时间
@@ -482,16 +482,13 @@ class DHTqSdk(BaseDataHelper):
 
     def dmpBars(self, codes: list, cb, start_date: datetime = None, end_date: datetime = None, period: str = "day"):
         '''
-        将K线导出到指定的目录下的csv文件，文件名格式如SSE.600000_d.csv
+        使用天勤下载K线后,传递给回调函数
         @cb     回调函数，格式如cb(exchg:str, code:str, firstBar:POINTER(WTSBarStruct), count:int, period:str)
         @codes  股票列表，格式如["SSE.600000","SZSE.000001"]
         @start_date 开始日期，datetime类型，传None则自动设置为1990-01-01
         @end_date   结束日期，datetime类型，传None则自动设置为当前日期
         @period K线周期，支持day、min1、min5
         '''
-        from tqsdk import TqSim, TqBacktest
-        from tqsdk.exceptions import BacktestFinished
-
         if start_date is None:
             start_date = datetime(year=1990, month=1, day=1)
         if end_date is None:
@@ -570,7 +567,6 @@ class DHTqSdk(BaseDataHelper):
                 print(f"[回测] 回测窗口: {backtest_start} -> {backtest_end}，目标条数: {batch_size} (交易日数估算: {trading_days_needed})")
 
                 try:
-                    from tqsdk import TqApi
                     with TqApi(
                             account=TqSim(),
                             auth=TqAuth(self.username, self.password),
@@ -585,29 +581,29 @@ class DHTqSdk(BaseDataHelper):
                         latest_datetime = None
                         for i in range(len(klines)):
                             if klines.iloc[i]['datetime'] > 0:
-                                ts_ns = klines.iloc[i]['datetime']
-                                ts_s = ts_ns / 1000000000
-                                trade_dt = datetime.fromtimestamp(ts_s)
-                                if start_date <= trade_dt <= end_date:
-                                    if trade_dt in existing_datetimes:
+                                timestamp_ns = klines.iloc[i]['datetime']
+                                timestamp_s = timestamp_ns / 1000000000
+                                trade_datetime = datetime.fromtimestamp(timestamp_s)
+                                if start_date <= trade_datetime <= end_date:
+                                    if trade_datetime in existing_datetimes:
                                         continue
-                                    existing_datetimes.add(trade_dt)
+                                    existing_datetimes.add(trade_datetime)
                                     records.append(klines.iloc[i])
-                                    if latest_datetime is None or trade_dt > latest_datetime:
-                                        latest_datetime = trade_dt
+                                    if latest_datetime is None or trade_datetime > latest_datetime:
+                                        latest_datetime = trade_datetime
 
                         if records:
                             BUFFER = WTSBarStruct * len(records)
                             buffer = BUFFER()
                             cur_idx = 0
                             for row in records:
-                                trade_dt = datetime.fromtimestamp(row['datetime'] / 1000000000)
+                                trade_datetime = datetime.fromtimestamp(row['datetime'] / 1000000000)
                                 curBar = buffer[cur_idx]
-                                curBar.date = int(trade_dt.strftime("%Y%m%d"))
+                                curBar.date = int(trade_datetime.strftime("%Y%m%d"))
                                 if freq == 86400:
                                     curBar.time = 0
                                 else:
-                                    curBar.time = int(trade_dt.strftime("%H%M")) + (curBar.date - 19900000) * 10000
+                                    curBar.time = int(trade_datetime.strftime("%H%M")) + (curBar.date - 19900000) * 10000
                                 curBar.open = row['open']
                                 curBar.high = row['high']
                                 curBar.low = row['low']
@@ -618,7 +614,9 @@ class DHTqSdk(BaseDataHelper):
 
                             ay = stdCode.split(".")
                             cb(ay[0], stdCode, buffer, len(records), period)
-
+                            if backtest_start == end_date:
+                                print("[回测] 回测开始时间等于截止时间，回测窗口内数据已结束")
+                                break
                             # 推进起始时间
                             if latest_datetime:
                                 if freq == 60:
@@ -637,7 +635,7 @@ class DHTqSdk(BaseDataHelper):
                                 elif freq == 86400:
                                     current_start = backtest_end + timedelta(days=1)
                         else:
-                            # 此窗口无数据，直接滑动
+                            print("[切换] 此窗口无数据，向后滑动时间窗口")
                             current_start = backtest_end
                 except BacktestFinished:
                     print("[回测] 回测窗口内数据已结束")
@@ -649,3 +647,8 @@ class DHTqSdk(BaseDataHelper):
                     sleep_time.sleep(3)
 
                 print(f"[状态] current_start = {current_start}\n")
+            # 完成一个代码的数据获取
+            if existing_datetimes:
+                print(f"[完成] {stdCode} 数据收集完成，累计记录: {len(existing_datetimes)} 条")
+            else:
+                print(f"[完成] {stdCode} 无可收集数据")
