@@ -195,7 +195,7 @@
       {
         "date": 20250722,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 6613.0,
         "oldclose": 0.0,
         "to": "PL601"
       }
@@ -8071,7 +8071,7 @@
       {
         "date": 20250910,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 4208.0,
         "oldclose": 0.0,
         "to": "op2601"
       }
@@ -9926,7 +9926,7 @@
       {
         "date": 20250708,
         "from": "",
-        "newclose": 0.0,
+        "newclose": 5931.0,
         "oldclose": 0.0,
         "to": "bz2603"
       }
