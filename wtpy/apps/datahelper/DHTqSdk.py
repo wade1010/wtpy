@@ -218,7 +218,7 @@ class DHTqSdk(BaseDataHelper):
                     print(f"[文件] 删除旧文件失败: {filepath}，错误: {e}")
 
             with open(filepath, "w", encoding="utf-8") as f:
-                f.write("date,time,open,high,low,close,volume,open_interest\n")
+                f.write("date,time,open,high,low,close,volume,open_interest,diff_interest\n")
 
             # 已存在的日期时间集合，用于去重
             existing_datetimes = set()
@@ -336,7 +336,8 @@ class DHTqSdk(BaseDataHelper):
                                         "low": float(klines.iloc[i]['low']),
                                         "close": float(klines.iloc[i]['close']),
                                         "volume": float(klines.iloc[i]['volume']),
-                                        "open_interest": float(klines.iloc[i].get('close_oi', 0))
+                                        "open_interest": float(klines.iloc[i].get('open_oi', 0)),
+                                        "diff_interest": float(klines.iloc[i].get('close_oi', 0)) - float(klines.iloc[i].get('open_oi', 0))
                                     }
 
                                     existing_datetimes.add(trade_datetime)  # 添加到去重集合
@@ -361,9 +362,11 @@ class DHTqSdk(BaseDataHelper):
                                         str(bar["low"]),
                                         str(bar["close"]),
                                         str(bar["volume"]),
-                                        str(bar["open_interest"])
+                                        str(bar["open_interest"]),
+                                        str(bar["diff_interest"])
                                     ]
                                     f.write(','.join(items) + "\n")
+                            print(f"[数据] 本批次保存 {len(current_data)} 条记录")
                             if backtest_start == end_date:
                                 print("[回测] 回测开始时间等于截止时间，回测窗口内数据已结束")
                                 break
@@ -609,11 +612,13 @@ class DHTqSdk(BaseDataHelper):
                                 curBar.low = row['low']
                                 curBar.close = row['close']
                                 curBar.vol = row['volume']
-                                curBar.hold = row['close_oi']
+                                curBar.hold = row['open_oi']
+                                curBar.diff = row['close_oi'] - row['open_oi']
                                 cur_idx += 1
 
                             ay = stdCode.split(".")
                             cb(ay[0], stdCode, buffer, len(records), period)
+                            print(f"[数据] 本批次保存 {len(records)} 条记录")
                             if backtest_start == end_date:
                                 print("[回测] 回测开始时间等于截止时间，回测窗口内数据已结束")
                                 break

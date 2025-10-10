@@ -35,6 +35,44 @@ def test_store_bars():
     dtHelper.store_bars(barFile="./CFFEX.IF.HOT_m5.bin", firstBar=buffer, count=len(df), period="m5")
 
 
+def test_store_bars_from_datafact_csv():
+    """
+    date,time,open,high,low,close,volume,open_interest,diff_interest
+    """
+    df = pd.read_csv('./CFFEX.IF.HOT_m1.csv')
+
+    # 创建datetime列用于处理日期时间
+    df['datetime'] = pd.to_datetime(df['date'] + ' ' + df['time'])
+
+    # 分别提取日期和时间（WonderTrader格式）
+    df['date'] = df['datetime'].dt.strftime('%Y%m%d').astype('int64')
+    df['time'] = (df['date'] - 19900000) * 10000 + df['datetime'].dt.strftime('%H%M%S').str[:-2].astype('int')
+
+    # 映射字段到WTSBarStruct格式
+    df['vol'] = df['volume']
+    df['hold'] = df['open_interest']
+    df['diff'] = df['diff_interest']
+    df['money'] = 0.0  # 成交额，如果CSV中没有则设为0
+    df['settle'] = 0.0  # 结算价，如果CSV中没有则设为0
+
+    # volume open_interest 需要 修改为 在 wtpy/WtCoreDefs.py的WTSBarStruct里面的_fields_ 对应的值
+    wt_columns = ['date', 'time', 'open', 'high', 'low', 'close', 'vol', 'money', 'hold', 'diff', 'settle']
+    df = df[wt_columns]
+
+    BUFFER = WTSBarStruct * len(df)
+    buffer = BUFFER()
+
+    def assign(procession, buffer):
+        tuple(map(lambda x: setattr(buffer[x[0]], procession.name, x[1]), enumerate(procession)))
+
+    df.apply(assign, buffer=buffer)
+    print(df.head())
+    print(buffer[0].to_dict)
+    print(buffer[-1].to_dict)
+
+    dtHelper.store_bars(barFile="./CFFEX.IF.HOT.dsb", firstBar=buffer, count=len(df), period="m1")
+
+
 def test_store_bars_from_vnpy_csv():
     df = pd.read_csv('./vnpy_DCE.jm888.csv')
 
@@ -141,6 +179,18 @@ def compare_read_dsb_ticks(times: int = 100):
     print(f"read_dsb_ticks {num_ticks} ticks for {times} times: {elapse:.2f}ms totally, {elapse / times:.2f}ms per reading")
 
 
+def read_dsb_bars_to_csv():
+    dtHelper = WtDataHelper()
+    dtHelper.dump_bars(binFolder="../storage/his/min1/CFFEX/", csvFolder="min1_csv")
+
+
+def read_dsb_tick_to_csv():
+    dtHelper = WtDataHelper()
+    dtHelper.dump_ticks(binFolder="../storage/his/ticks/SHFE/20211227/", csvFolder="ticks_csv")
+
+
 # test_store_bars_from_vnpy_csv()
-compare_read_dsb_bars()
+# compare_read_dsb_bars()
 # compare_read_dsb_ticks()
+read_dsb_bars_to_csv()
+# test_store_bars_from_datafact_csv()
