@@ -42,6 +42,8 @@ class DHTqSdk(BaseDataHelper):
             return
         self.username = kwargs["username"]
         self.password = kwargs["password"]
+        if self.username == "" or self.password == "":
+            raise Exception("username or password is null.")
         self.isAuthed = True
         print("TqSdk has been authorized.")
 
