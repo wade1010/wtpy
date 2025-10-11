@@ -363,12 +363,12 @@ class DHTqSdk(BaseDataHelper):
                     f.write(expected_header)
             if USE_REVERSE:
                 # 注意：逆序下载方法 _reverse_do_dmp_bars_to_file 已实现，可根据需要调用
-                self._reverse_do_dmp_bars_to_file(code, end_date, filepath, freq, start_date, stdCode)
+                self._reverse_do_dmp_bars_to_csv(code, end_date, filepath, freq, start_date, stdCode)
             else:
                 # 按时 顺序 从天勤下载数据
-                self._do_dmp_bars_to_file(code, end_date, filepath, freq, start_date, stdCode)
+                self._do_dmp_bars_to_csv(code, end_date, filepath, freq, start_date, stdCode)
 
-    def _reverse_do_dmp_bars_to_file(self, code, end_date, filepath, freq, start_date, stdCode):
+    def _reverse_do_dmp_bars_to_csv(self, code, end_date, filepath, freq, start_date, stdCode):
         """
         按时 逆序 从天勤下载数据 分两种情况，本地csv已经有历史数据(读老数据->合并去重->排序->再保存) 和 无历史数据两种情况(有一个全局数组,每次新数据插入到该数组的头部,直接保存该数组)
         """
@@ -531,7 +531,7 @@ class DHTqSdk(BaseDataHelper):
             backtest_start = current_end
             backtest_end = backtest_start + timedelta(days=8)  # 这里加8天是确保回测范围不会都在非交易范围内
 
-            print(f"[逆序] 正在获取 {current_end} 的K线数据，设置获取条数: {data_length}...")
+            print(f"[逆序] 正在获取截止到 {current_end} 的K线数据，设置获取条数: {data_length}...")
 
             try:
                 # 使用回测模式获取历史数据
@@ -630,7 +630,7 @@ class DHTqSdk(BaseDataHelper):
 
         print(f"[逆序] 数据获取完成")
 
-    def _do_dmp_bars_to_file(self, code, end_date, filepath, freq, start_date, stdCode):
+    def _do_dmp_bars_to_csv(self, code, end_date, filepath, freq, start_date, stdCode):
         """
         按时顺序从天勤下载数据,是每次都追加写到csv中，只有追加写的方式
         """
@@ -904,6 +904,7 @@ class DHTqSdk(BaseDataHelper):
         @end_date   结束日期，datetime类型，传None则自动设置为当前日期
         @period K线周期，支持day、min1、min5
         '''
+        USE_REVERSE = True  # 从天勤下载使用正序还是倒序，True表示倒序，这个比较快一些
         accumulated_records_max = 100000
         if start_date is None:
             start_date = datetime(year=1990, month=1, day=1)
@@ -923,56 +924,47 @@ class DHTqSdk(BaseDataHelper):
         count = 0
         length = len(codes)
 
-        # 初始化累积buffer相关变量
-        accumulated_records = []
-
-        def _save_records_to_buffer(reason):
+        def _save_records_to_buffer(reason, records_list):
             """将accumulated_records保存到buffer并调用cb的公共逻辑"""
-            nonlocal accumulated_records
-            if accumulated_records:
-                # 创建buffer并调用cb
-                BUFFER = WTSBarStruct * len(accumulated_records)
-                buffer = BUFFER()
-                cur_idx = 0
-                for record_data in accumulated_records:
-                    row, trade_datetime = record_data
-                    curBar = buffer[cur_idx]
-                    curBar.date = int(trade_datetime.strftime("%Y%m%d"))
-                    if freq == 86400:
-                        curBar.time = 0
-                    else:
-                        curBar.time = int(trade_datetime.strftime("%H%M")) + (curBar.date - 19900000) * 10000
-                    curBar.open = row['open']
-                    curBar.high = row['high']
-                    curBar.low = row['low']
-                    curBar.close = row['close']
-                    curBar.vol = row['volume']
-                    curBar.hold = row['open_oi']
-                    curBar.diff = row['close_oi'] - row['open_oi']
-                    cur_idx += 1
-
-                ay = stdCode.split(".")
-                if cb is None:
-                    cb_store_bar_to_dsb(ay[0], stdCode, buffer, len(accumulated_records), period)
+            # 创建buffer并调用cb
+            BUFFER = WTSBarStruct * len(records_list)
+            buffer = BUFFER()
+            cur_idx = 0
+            for row in records_list:
+                trade_datetime = datetime.fromtimestamp(row['datetime'] / 1000000000)
+                curBar = buffer[cur_idx]
+                curBar.date = int(trade_datetime.strftime("%Y%m%d"))
+                if freq == 86400:
+                    curBar.time = 0
                 else:
-                    cb(ay[0], stdCode, buffer, len(accumulated_records), period)
-                print(f"[数据] {reason}，保存 {len(accumulated_records)} 条记录")
-                accumulated_records = []  # 清空buffer
+                    curBar.time = int(trade_datetime.strftime("%H%M")) + (curBar.date - 19900000) * 10000
+                curBar.open = row['open']
+                curBar.high = row['high']
+                curBar.low = row['low']
+                curBar.close = row['close']
+                curBar.vol = row['volume']
+                curBar.hold = row['open_oi']
+                curBar.diff = row['close_oi'] - row['open_oi']
+                cur_idx += 1
 
-        def _flush_buffer_if_needed():
+            ay = stdCode.split(".")
+            if cb is None:
+                cb_store_bar_to_dsb(ay[0], stdCode, buffer, len(records_list), period)
+            else:
+                cb(ay[0], stdCode, buffer, len(records_list), period)
+            print(f"[数据] {reason}，保存 {len(records_list)} 条记录")
+            records_list.clear()  # 清空buffer
+
+        def _flush_buffer_if_needed(records_list):
             """当累积记录超过 accumulated_records_max 时，调用cb并清空buffer"""
-            nonlocal accumulated_records
-            if len(accumulated_records) >= accumulated_records_max:
-                _save_records_to_buffer("累积buffer达到阈值")
+            if len(records_list) > accumulated_records_max:
+                _save_records_to_buffer("累积buffer达到阈值", records_list)
 
-        def _flush_remaining_buffer():
+        def _flush_remaining_buffer(records_list):
             """处理剩余的buffer数据"""
-            nonlocal accumulated_records
-            if accumulated_records:
-                _save_records_to_buffer("方法结束")
+            if records_list:
+                _save_records_to_buffer("方法结束", records_list)
 
-        freq60_multiple = 400
-        freq300_multiple = 50
         for stdCode in codes:
             count += 1
             if length > 1:
@@ -981,152 +973,286 @@ class DHTqSdk(BaseDataHelper):
                 print(f"[任务] 开始获取 {stdCode} 的 {period} K线")
 
             code = stdCodeToTQ(stdCode)
-            existing_datetimes = set()
-            current_start = start_date
-
-            while current_start < end_date:
-                # 计算预计剩余条数，用于确定批次大小
-                start_np = np.datetime64(current_start.date(), 'D')
-                end_np = np.datetime64((end_date + timedelta(days=1)).date(), 'D')
-                days_diff = np.busday_count(start_np, end_np)
-
-                if freq == 60:
-                    estimated_remaining_bars = days_diff * 600
-                elif freq == 300:
-                    estimated_remaining_bars = days_diff * 120
-                elif freq == 86400:
-                    estimated_remaining_bars = days_diff + 7
-                else:
-                    raise Exception("不支持的周期，仅支持day、min1、min5")
-
-                batch_size = min(10000, int(estimated_remaining_bars))
-                if batch_size <= 100:
-                    batch_size = 100
-
-                print(f"[窗口] 计划窗口: {current_start} -> {end_date}，估算剩余: {estimated_remaining_bars} 条，拟取: {batch_size} 条")
-
-                # 按交易日推进窗口
-                if freq == 86400:
-                    trading_days_needed = int(np.ceil(batch_size))
-                    start_np_d = np.datetime64(current_start.date(), 'D')
-                    end_np_d = np.busday_offset(start_np_d, trading_days_needed, roll='following')
-                    end_dt = datetime.strptime(np.datetime_as_string(end_np_d), "%Y-%m-%d")
-                elif freq == 60:
-                    trading_days_needed = int(np.ceil(batch_size / freq60_multiple))
-                    start_np_d = np.datetime64(current_start.date(), 'D')
-                    end_np_d = np.busday_offset(start_np_d, trading_days_needed, roll='following')
-                    end_dt = datetime.strptime(np.datetime_as_string(end_np_d), "%Y-%m-%d")
-                elif freq == 300:
-                    trading_days_needed = int(np.ceil(batch_size / freq300_multiple))
-                    start_np_d = np.datetime64(current_start.date(), 'D')
-                    end_np_d = np.busday_offset(start_np_d, trading_days_needed, roll='following')
-                    end_dt = datetime.strptime(np.datetime_as_string(end_np_d), "%Y-%m-%d")
-                else:
-                    raise Exception("不支持的周期，仅支持day、min1、min5")
-
-                end_dt = datetime.combine(end_dt.date(), current_start.time())
-                if end_dt >= end_date:
-                    backtest_start = end_date
-                else:
-                    backtest_start = end_dt
-                backtest_end = backtest_start + timedelta(days=8)  # 这里加8天是确保回测范围不会都在非交易范围内
-
-                print(f"[回测] 回测窗口: {backtest_start} -> {backtest_end}，目标条数: {batch_size} (交易日数估算: {trading_days_needed})")
-
-                try:
-                    with TqApi(
-                            account=TqSim(),
-                            auth=TqAuth(self.username, self.password),
-                            backtest=TqBacktest(start_dt=backtest_start, end_dt=backtest_end),
-                            disable_print=True
-                    ) as api:
-                        klines = api.get_kline_serial(symbol=code, duration_seconds=freq, data_length=batch_size)
-                        api.wait_update()
-
-                        # 收集并构造成 WTSBarStruct 缓冲
-                        records = []
-                        latest_datetime = None
-                        is_first_valid_k = True
-                        need_continue = False
-                        for i in range(len(klines)):
-                            if klines.iloc[i]['datetime'] > 0:
-                                timestamp_ns = klines.iloc[i]['datetime']
-                                timestamp_s = timestamp_ns / 1000000000
-                                trade_datetime = datetime.fromtimestamp(timestamp_s)
-                                if is_first_valid_k:
-                                    is_first_valid_k = False
-                                    if trade_datetime > current_start:
-                                        print(f"[数据] 首根有效K线的交易时间 {trade_datetime} 晚于当前开始时间 {current_start}，正在调整频率倍数，然后重新获取K线数据")
-                                        if freq == 60:
-                                            old_multiple = freq60_multiple
-                                            freq60_multiple += 50
-                                            freq60_multiple = max(freq60_multiple, 1)
-                                            print(f"[数据] 60秒频率倍数调整: {old_multiple} -> {freq60_multiple}")
-                                        elif freq == 300:
-                                            old_multiple = freq300_multiple
-                                            freq300_multiple += 5
-                                            freq300_multiple = max(freq300_multiple, 1)
-                                            print(f"[数据] 300秒频率倍数调整: {old_multiple} -> {freq300_multiple}")
-
-                                        need_continue = True
-                                        break
-                                if start_date <= trade_datetime <= end_date:
-                                    if trade_datetime in existing_datetimes:
-                                        continue
-                                    existing_datetimes.add(trade_datetime)
-                                    records.append(klines.iloc[i])
-                                    if latest_datetime is None or trade_datetime > latest_datetime:
-                                        latest_datetime = trade_datetime
-                        if need_continue:
-                            continue
-                        if records:
-                            # 将记录添加到累积buffer中
-                            for row in records:
-                                trade_datetime = datetime.fromtimestamp(row['datetime'] / 1000000000)
-                                accumulated_records.append((row, trade_datetime))
-
-                            print(f"[数据] 本批次累积 {len(records)} 条记录，总累积: {len(accumulated_records)} 条")
-
-                            # 检查是否需要刷新buffer
-                            _flush_buffer_if_needed()
-                            if backtest_start == end_date:
-                                print("[回测] 回测开始时间等于截止时间，回测窗口内数据已结束")
-                                break
-                            # 推进起始时间
-                            if latest_datetime:
-                                if freq == 60:
-                                    current_start = latest_datetime + timedelta(minutes=1)
-                                elif freq == 300:
-                                    current_start = latest_datetime + timedelta(minutes=5)
-                                elif freq == 86400:
-                                    current_start = latest_datetime + timedelta(days=1)
-                                print(f"[切换] 下一次查询开始时间 -> {current_start}")
-                            else:
-                                # 无最新时间，按窗口滑动
-                                if freq == 60:
-                                    current_start = backtest_end + timedelta(minutes=1)
-                                elif freq == 300:
-                                    current_start = backtest_end + timedelta(minutes=5)
-                                elif freq == 86400:
-                                    current_start = backtest_end + timedelta(days=1)
-                        else:
-                            print("[切换] 此窗口无数据，向后滑动时间窗口")
-                            current_start = backtest_end
-                except BacktestFinished:
-                    print("[回测] 回测窗口内数据已结束")
-                    current_start = backtest_end
-                except Exception as e:
-                    print(f"[异常] 获取数据出错: {str(e)}")
-                    print(f"[切换] 调整窗口并重试: {current_start} -3天")
-                    current_start = current_start - timedelta(days=3)
-                    sleep_time.sleep(3)
-
-                print(f"[状态] current_start = {current_start}\n")
-            # 完成一个代码的数据获取
-            if existing_datetimes:
-                print(f"[完成] {stdCode} 数据收集完成，累计记录: {len(existing_datetimes)} 条")
+            if USE_REVERSE:
+                self._reverse_do_dmp_bars_to_dsb(_flush_buffer_if_needed, _flush_remaining_buffer, code, end_date, freq, start_date, stdCode)
             else:
-                print(f"[完成] {stdCode} 无可收集数据")
+                self._do_dmp_bars_to_dsb(_flush_buffer_if_needed, _flush_remaining_buffer, code, end_date, freq, start_date, stdCode)
 
-            # 处理该代码剩余的buffer数据
-            _flush_remaining_buffer()
+    def _reverse_do_dmp_bars_to_dsb(self, _flush_buffer_if_needed, _flush_remaining_buffer, code, end_date, freq, start_date, stdCode):
+        """
+        按时 逆序 从天勤下载数据 分两种情况，本地csv已经有历史数据(读老数据->合并去重->排序->再保存) 和 无历史数据两种情况(有一个全局数组,每次新数据插入到该数组的头部,直接保存该数组)
+        """
+        # 初始化累积buffer相关变量
+        accumulated_records = []
+        # 已存在的日期时间集合，用于去重
+        existing_datetimes = set()
+        # 当前结束时间，从用户指定的结束时间开始
+        current_end = end_date
+        print(f"[逆序] 开始逆序获取 {stdCode} 从 {start_date} 到 {end_date} 的历史K线数据...")
+
+        while current_end >= start_date:
+            # 计算当前窗口的预估数据量
+            # 转换为日期格式，去掉时间部分
+            start_np = np.datetime64(start_date.date(), 'D')
+            end_np = np.datetime64((end_date + timedelta(days=1)).date(), 'D')
+
+            # 计算工作日（默认排除周末） 不包含 end_date 所以前面加1天
+            days_diff = np.busday_count(start_np, end_np)
+
+            if freq == 60:  # 1分钟
+                data_length = min(days_diff * 600, 10000)  # 每天约600条交易时间
+            elif freq == 300:  # 5分钟
+                data_length = min(days_diff * 120, 10000)  # 每天约120条交易时间
+            elif freq == 86400:  # 1天
+                data_length = min(days_diff + 7, 10000)
+            else:
+                raise Exception("不支持的周期，仅支持day、min1、min5")
+
+            # 不超过剩余可用额度
+            data_length = min(data_length, 10000)
+
+            # 设置回测时间窗口
+            backtest_start = current_end
+            backtest_end = backtest_start + timedelta(days=8)  # 这里加8天是确保回测范围不会都在非交易范围内
+
+            print(f"[回测] 正在获取截止到 {current_end} 的K线数据，设置获取条数: {data_length}...")
+
+            try:
+                # 使用回测模式获取历史数据
+                with TqApi(
+                        account=TqSim(),
+                        auth=TqAuth(self.username, self.password),
+                        backtest=TqBacktest(start_dt=backtest_start, end_dt=backtest_end),
+                        disable_print=True
+                ) as api:
+                    # 获取K线数据
+                    klines = api.get_kline_serial(
+                        symbol=code,
+                        duration_seconds=freq,
+                        data_length=data_length
+                    )
+
+                    # 等待数据更新
+                    api.wait_update()
+
+                    # 收集数据
+                    records = []
+                    collected_count = 0
+                    first_valid_datetime = None
+                    for i in range(len(klines)):
+                        if klines.iloc[i]['datetime'] > 0:  # 有效数据
+                            # 转换时间戳（纳秒转秒）
+                            timestamp_ns = klines.iloc[i]['datetime']
+                            timestamp_s = timestamp_ns / 1000000000
+                            trade_datetime = datetime.fromtimestamp(timestamp_s)
+
+                            if first_valid_datetime is None:
+                                first_valid_datetime = trade_datetime
+
+                            # 去重检查 - 如果这个时间点已经存在，跳过
+                            if trade_datetime in existing_datetimes:
+                                continue
+                            # 过滤日期范围
+                            if start_date <= trade_datetime <= end_date:
+                                existing_datetimes.add(trade_datetime)  # 添加到去重集合
+                                records.append(klines.iloc[i])
+                                collected_count += 1
+
+                    # 将本次收集的数据加入到所有数据中（逆序收集，所以新数据加到前面）
+                    if records:
+                        # 直接批量添加记录到累积buffer，提升效率
+                        accumulated_records.extend(records)
+
+                        print(f"[数据] 共获取 {len(klines)} 条K线数据，有效获取 {collected_count} 条K线数据，总计 {len(accumulated_records)} 条")
+
+                        # 检查是否需要刷新缓存
+                        _flush_buffer_if_needed(accumulated_records)
+
+                        # 检查是否满足终止条件
+                        if collected_count <= data_length - 100 and first_valid_datetime and first_valid_datetime < start_date:
+                            print(f"[逆序] 有效获取数量为 {collected_count}，小于 {data_length - 100}，且获取的数据中第一条K线的时间 {first_valid_datetime} 在开始时间 {start_date} 之前，表明已获取全部数据")
+                            break
+                        elif collected_count == 0:
+                            print(f"获取的K线数量为0，结束下载!!!!!!!!!!!!!!!!!")
+                            break
+                        elif collected_count <= data_length - 100:
+                            print(f"获取的K线数量不足{data_length - 100}条，可能已经是最老的数据了!!!!!!!!!!!!!!!!!")
+
+                        current_end = datetime.fromtimestamp(records[0]['datetime'] / 1000000000)
+                        # 检查是否已经到达起始日期
+                        if current_end <= start_date:
+                            print(f"[逆序] 已到达起始日期{start_date}，停止查询")
+                            break
+                        print(f"[逆序] 下次查询结束时间设置为: {current_end}\n")
+                    else:
+                        print("[切换] 此窗口无数据，向后滑动时间窗口")
+                        current_end = backtest_end
+            except BacktestFinished:
+                if collected_count < data_length:
+                    break
+            except Exception as e:
+                print(f"[逆序] 获取 {current_end} 的K线数据失败: {e}")
+                # 出错后向前移动时间窗口重试
+                if freq == 60:
+                    current_end = current_end - timedelta(minutes=1)
+                elif freq == 300:
+                    current_end = current_end - timedelta(minutes=5)
+                else:
+                    current_end = current_end - timedelta(days=1)
+                sleep_time.sleep(3)
+
+        # 处理剩余的缓存数据
+        _flush_remaining_buffer(accumulated_records)
+
+        print(f"[逆序] 数据获取完成")
+
+    def _do_dmp_bars_to_dsb(self, _flush_buffer_if_needed, _flush_remaining_buffer, code, end_date, freq, start_date, stdCode):
+        # 初始化累积buffer相关变量
+        accumulated_records = []
+        freq60_multiple = 400
+        freq300_multiple = 50
+        existing_datetimes = set()
+        current_start = start_date
+        while current_start < end_date:
+            # 计算预计剩余条数，用于确定批次大小
+            start_np = np.datetime64(current_start.date(), 'D')
+            end_np = np.datetime64((end_date + timedelta(days=1)).date(), 'D')
+            days_diff = np.busday_count(start_np, end_np)
+
+            if freq == 60:
+                estimated_remaining_bars = days_diff * 600
+            elif freq == 300:
+                estimated_remaining_bars = days_diff * 120
+            elif freq == 86400:
+                estimated_remaining_bars = days_diff + 7
+            else:
+                raise Exception("不支持的周期，仅支持day、min1、min5")
+
+            batch_size = min(10000, int(estimated_remaining_bars))
+            if batch_size <= 100:
+                batch_size = 100
+
+            print(f"[窗口] 计划窗口: {current_start} -> {end_date}，估算剩余: {estimated_remaining_bars} 条，拟取: {batch_size} 条")
+
+            # 按交易日推进窗口
+            if freq == 86400:
+                trading_days_needed = int(np.ceil(batch_size))
+                start_np_d = np.datetime64(current_start.date(), 'D')
+                end_np_d = np.busday_offset(start_np_d, trading_days_needed, roll='following')
+                end_dt = datetime.strptime(np.datetime_as_string(end_np_d), "%Y-%m-%d")
+            elif freq == 60:
+                trading_days_needed = int(np.ceil(batch_size / freq60_multiple))
+                start_np_d = np.datetime64(current_start.date(), 'D')
+                end_np_d = np.busday_offset(start_np_d, trading_days_needed, roll='following')
+                end_dt = datetime.strptime(np.datetime_as_string(end_np_d), "%Y-%m-%d")
+            elif freq == 300:
+                trading_days_needed = int(np.ceil(batch_size / freq300_multiple))
+                start_np_d = np.datetime64(current_start.date(), 'D')
+                end_np_d = np.busday_offset(start_np_d, trading_days_needed, roll='following')
+                end_dt = datetime.strptime(np.datetime_as_string(end_np_d), "%Y-%m-%d")
+            else:
+                raise Exception("不支持的周期，仅支持day、min1、min5")
+
+            end_dt = datetime.combine(end_dt.date(), current_start.time())
+            if end_dt >= end_date:
+                backtest_start = end_date
+            else:
+                backtest_start = end_dt
+            backtest_end = backtest_start + timedelta(days=8)  # 这里加8天是确保回测范围不会都在非交易范围内
+
+            print(f"[回测] 回测窗口: {backtest_start} -> {backtest_end}，目标条数: {batch_size} (交易日数估算: {trading_days_needed})")
+
+            try:
+                with TqApi(
+                        account=TqSim(),
+                        auth=TqAuth(self.username, self.password),
+                        backtest=TqBacktest(start_dt=backtest_start, end_dt=backtest_end),
+                        disable_print=True
+                ) as api:
+                    klines = api.get_kline_serial(symbol=code, duration_seconds=freq, data_length=batch_size)
+                    api.wait_update()
+
+                    # 收集并构造成 WTSBarStruct 缓冲
+                    records = []
+                    latest_datetime = None
+                    is_first_valid_k = True
+                    need_continue = False
+                    for i in range(len(klines)):
+                        if klines.iloc[i]['datetime'] > 0:
+                            timestamp_ns = klines.iloc[i]['datetime']
+                            timestamp_s = timestamp_ns / 1000000000
+                            trade_datetime = datetime.fromtimestamp(timestamp_s)
+                            if is_first_valid_k:
+                                is_first_valid_k = False
+                                if trade_datetime > current_start:
+                                    print(f"[数据] 首根有效K线的交易时间 {trade_datetime} 晚于当前开始时间 {current_start}，正在调整频率倍数，然后重新获取K线数据")
+                                    if freq == 60:
+                                        old_multiple = freq60_multiple
+                                        freq60_multiple += 50
+                                        freq60_multiple = max(freq60_multiple, 1)
+                                        print(f"[数据] 60秒频率倍数调整: {old_multiple} -> {freq60_multiple}")
+                                    elif freq == 300:
+                                        old_multiple = freq300_multiple
+                                        freq300_multiple += 5
+                                        freq300_multiple = max(freq300_multiple, 1)
+                                        print(f"[数据] 300秒频率倍数调整: {old_multiple} -> {freq300_multiple}")
+
+                                    need_continue = True
+                                    break
+                            if start_date <= trade_datetime <= end_date:
+                                if trade_datetime in existing_datetimes:
+                                    continue
+                                existing_datetimes.add(trade_datetime)
+                                records.append(klines.iloc[i])
+                                if latest_datetime is None or trade_datetime > latest_datetime:
+                                    latest_datetime = trade_datetime
+                    if need_continue:
+                        continue
+                    if records:
+                        # 直接批量添加记录到累积buffer，提升效率
+                        accumulated_records.extend(records)
+
+                        print(f"[数据] 本批次累积 {len(records)} 条记录，总累积: {len(accumulated_records)} 条")
+
+                        # 检查是否需要刷新buffer
+                        _flush_buffer_if_needed(accumulated_records)
+                        if backtest_start == end_date:
+                            print("[回测] 回测开始时间等于截止时间，回测窗口内数据已结束")
+                            break
+                        # 推进起始时间
+                        if latest_datetime:
+                            if freq == 60:
+                                current_start = latest_datetime + timedelta(minutes=1)
+                            elif freq == 300:
+                                current_start = latest_datetime + timedelta(minutes=5)
+                            elif freq == 86400:
+                                current_start = latest_datetime + timedelta(days=1)
+                            print(f"[切换] 下一次查询开始时间 -> {current_start}")
+                        else:
+                            # 无最新时间，按窗口滑动
+                            if freq == 60:
+                                current_start = backtest_end + timedelta(minutes=1)
+                            elif freq == 300:
+                                current_start = backtest_end + timedelta(minutes=5)
+                            elif freq == 86400:
+                                current_start = backtest_end + timedelta(days=1)
+                    else:
+                        print("[切换] 此窗口无数据，向后滑动时间窗口")
+                        current_start = backtest_end
+            except BacktestFinished:
+                print("[回测] 回测窗口内数据已结束")
+                current_start = backtest_end
+            except Exception as e:
+                print(f"[异常] 获取数据出错: {str(e)}")
+                print(f"[切换] 调整窗口并重试: {current_start} -3天")
+                current_start = current_start - timedelta(days=3)
+                sleep_time.sleep(3)
+
+            print(f"[状态] current_start = {current_start}\n")
+        # 完成一个代码的数据获取
+        if existing_datetimes:
+            print(f"[完成] {stdCode} 数据收集完成，累计记录: {len(existing_datetimes)} 条")
+        else:
+            print(f"[完成] {stdCode} 无可收集数据")
+        # 处理该代码剩余的buffer数据
+        _flush_remaining_buffer(accumulated_records)

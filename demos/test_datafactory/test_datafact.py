@@ -3,7 +3,6 @@ import datetime
 import os
 from wtpy.WtCoreDefs import WTSBarStruct
 from wtpy.apps.datahelper import DHFactory as DHF
-from bar_processor import on_bars_block
 
 # hlper = DHF.createHelper("baostock")
 # hlper.auth()
@@ -18,7 +17,7 @@ from bar_processor import on_bars_block
 
 # tqsdk
 hlper = DHF.createHelper("tqsdk")
-hlper.auth(**{"username": "", "password": ""})
+hlper.auth(**{"username": "15600097398", "password": "wade1010"})
 
 # 落地股票列表
 # hlper.dmpCodeListToFile("stocks.json")
