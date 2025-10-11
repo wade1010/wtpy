@@ -480,6 +480,11 @@ class DHTqSdk(BaseDataHelper):
                     if collected_count <= data_length - 100 and first_valid_datetime and first_valid_datetime < start_date:
                         print(f"[逆序] 有效获取数量为 {collected_count}，小于 {data_length - 100}，且获取的数据中第一条K线的时间 {first_valid_datetime} 在开始时间 {start_date} 之前，表明已获取全部数据")
                         break
+                    elif collected_count == 0:
+                        print(f"获取的K线数量为0，结束下载!!!!!!!!!!!!!!!!!")
+                        break
+                    elif collected_count <= data_length - 100:
+                        print(f"获取的K线数量不足{data_length - 100}条，可能已经是最老的数据了!!!!!!!!!!!!!!!!!")
 
                     current_end = current_data[0]['datetime']
                     # 检查是否已经到达起始日期
