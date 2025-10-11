@@ -182,6 +182,30 @@ class DHTqSdk(BaseDataHelper):
             "INE": {},
             "GFEX": {}
         }
+        print("Fetching future list...")
+        for exchange in futures.keys():
+            code_list = api.query_quotes(ins_class="FUTURE", exchange_id=exchange)
+            code_list_info = api.query_symbol_info(code_list)
+            for idx, row in code_list_info.iterrows():
+                fInfo = dict()
+                rawcode = row["instrument_id"].split('.')[-1]
+                fInfo["exchg"] = exchange
+                fInfo["code"] = rawcode
+                fInfo["name"] = row["instrument_name"]
+                fInfo["product"] = "IDX"
+                futures[exchange][rawcode] = fInfo
+        print("Fetching future cont list...")
+        for exchange in futures.keys():
+            code_list = api.query_quotes(ins_class="CONT", exchange_id=exchange)
+            code_list_info = api.query_symbol_info(code_list)
+            for idx, row in code_list_info.iterrows():
+                fInfo = dict()
+                rawcode = row["instrument_id"].split('.')[-1]
+                fInfo["exchg"] = exchange
+                fInfo["code"] = rawcode
+                fInfo["name"] = row["instrument_name"]
+                fInfo["product"] = "IDX"
+                futures[exchange][rawcode] = fInfo
         if hasStock:
             print("Fetching stock list...")
             for exchange in stocks.keys():
@@ -194,7 +218,7 @@ class DHTqSdk(BaseDataHelper):
                     sInfo["code"] = rawcode
                     sInfo["name"] = row["instrument_name"]
                     sInfo["product"] = "STK"
-                    stocks[sInfo["exchg"]][rawcode] = sInfo
+                    stocks[exchange][rawcode] = sInfo
         if hasIndex:
             print("Fetching Index list...")
             for exchange in stocks.keys():
@@ -207,7 +231,7 @@ class DHTqSdk(BaseDataHelper):
                     sInfo["code"] = rawcode
                     sInfo["name"] = row["instrument_name"]
                     sInfo["product"] = "IDX"
-                    stocks[sInfo["exchg"]][rawcode] = sInfo
+                    stocks[exchange][rawcode] = sInfo
         print(f"Writing code list into file {filename}...")
         stocks.update(futures)
         f = open(filename, 'w', encoding='utf-8')
