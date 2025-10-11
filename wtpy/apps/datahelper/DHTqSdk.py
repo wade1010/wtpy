@@ -192,7 +192,7 @@ class DHTqSdk(BaseDataHelper):
                 fInfo["exchg"] = exchange
                 fInfo["code"] = rawcode
                 fInfo["name"] = row["instrument_name"]
-                fInfo["product"] = "IDX"
+                fInfo["product"] = "FUTURE"
                 futures[exchange][rawcode] = fInfo
         print("Fetching future cont list...")
         for exchange in futures.keys():
@@ -204,7 +204,7 @@ class DHTqSdk(BaseDataHelper):
                 fInfo["exchg"] = exchange
                 fInfo["code"] = rawcode
                 fInfo["name"] = row["instrument_name"]
-                fInfo["product"] = "IDX"
+                fInfo["product"] = "CONT"
                 futures[exchange][rawcode] = fInfo
         if hasStock:
             print("Fetching stock list...")
