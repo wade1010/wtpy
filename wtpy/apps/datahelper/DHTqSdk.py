@@ -492,6 +492,7 @@ class DHTqSdk(BaseDataHelper):
         @end_date   结束日期，datetime类型，传None则自动设置为当前日期
         @period K线周期，支持day、min1、min5
         '''
+        accumulated_records_max = 100000
         if start_date is None:
             start_date = datetime(year=1990, month=1, day=1)
         if end_date is None:
@@ -514,9 +515,9 @@ class DHTqSdk(BaseDataHelper):
         accumulated_records = []
 
         def flush_buffer_if_needed():
-            """当累积记录超过500000时，调用cb并清空buffer"""
+            """当累积记录超过 accumulated_records_max 时，调用cb并清空buffer"""
             nonlocal accumulated_records
-            if len(accumulated_records) >= 10000:
+            if len(accumulated_records) >= accumulated_records_max:
                 if accumulated_records:
                     # 创建buffer并调用cb
                     BUFFER = WTSBarStruct * len(accumulated_records)
