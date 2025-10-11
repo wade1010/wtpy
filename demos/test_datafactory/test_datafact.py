@@ -132,6 +132,6 @@ def on_bars_block(exchg: str, stdCode: str, firstBar: POINTER(WTSBarStruct), cou
         # 没有现有数据，直接保存新数据
         print(f"[数据] 新建文件，保存: {count} 条记录")
         dtHelper.store_bars(filename, firstBar, count, period)
-    pass
 
-# hlper.dmpBars(codes=["CFFEX.IF.HOT"], cb=on_bars_block, start_date=datetime.datetime(2025, 5, 1), end_date=datetime.datetime(2025, 10, 1), period="min1")
+
+hlper.dmpBars(codes=["DCE.jm.HOT"], cb=on_bars_block, start_date=datetime.datetime(2020, 1, 1), end_date=datetime.datetime(2025, 10, 11), period="min1")

@@ -509,6 +509,71 @@ class DHTqSdk(BaseDataHelper):
 
         count = 0
         length = len(codes)
+
+        # 初始化累积buffer相关变量
+        accumulated_records = []
+
+        def flush_buffer_if_needed():
+            """当累积记录超过500000时，调用cb并清空buffer"""
+            nonlocal accumulated_records
+            if len(accumulated_records) >= 10000:
+                if accumulated_records:
+                    # 创建buffer并调用cb
+                    BUFFER = WTSBarStruct * len(accumulated_records)
+                    buffer = BUFFER()
+                    cur_idx = 0
+                    for record_data in accumulated_records:
+                        row, trade_datetime = record_data
+                        curBar = buffer[cur_idx]
+                        curBar.date = int(trade_datetime.strftime("%Y%m%d"))
+                        if freq == 86400:
+                            curBar.time = 0
+                        else:
+                            curBar.time = int(trade_datetime.strftime("%H%M")) + (curBar.date - 19900000) * 10000
+                        curBar.open = row['open']
+                        curBar.high = row['high']
+                        curBar.low = row['low']
+                        curBar.close = row['close']
+                        curBar.vol = row['volume']
+                        curBar.hold = row['open_oi']
+                        curBar.diff = row['close_oi'] - row['open_oi']
+                        cur_idx += 1
+
+                    ay = stdCode.split(".")
+                    cb(ay[0], stdCode, buffer, len(accumulated_records), period)
+                    print(f"[数据] 累积buffer达到阈值，保存 {len(accumulated_records)} 条记录")
+                    accumulated_records = []  # 清空buffer
+
+        def flush_remaining_buffer():
+            """处理剩余的buffer数据"""
+            nonlocal accumulated_records
+            if accumulated_records:
+                # 创建buffer并调用cb
+                BUFFER = WTSBarStruct * len(accumulated_records)
+                buffer = BUFFER()
+                cur_idx = 0
+                for record_data in accumulated_records:
+                    row, trade_datetime = record_data
+                    curBar = buffer[cur_idx]
+                    curBar.date = int(trade_datetime.strftime("%Y%m%d"))
+                    if freq == 86400:
+                        curBar.time = 0
+                    else:
+                        curBar.time = int(trade_datetime.strftime("%H%M")) + (curBar.date - 19900000) * 10000
+                    curBar.open = row['open']
+                    curBar.high = row['high']
+                    curBar.low = row['low']
+                    curBar.close = row['close']
+                    curBar.vol = row['volume']
+                    curBar.hold = row['open_oi']
+                    curBar.diff = row['close_oi'] - row['open_oi']
+                    cur_idx += 1
+
+                ay = stdCode.split(".")
+                cb(ay[0], stdCode, buffer, len(accumulated_records), period)
+                print(f"[数据] 方法结束，保存剩余 {len(accumulated_records)} 条记录")
+                accumulated_records = []  # 清空buffer
+
         for stdCode in codes:
             count += 1
             if length > 1:
@@ -596,29 +661,15 @@ class DHTqSdk(BaseDataHelper):
                                         latest_datetime = trade_datetime
 
                         if records:
-                            BUFFER = WTSBarStruct * len(records)
-                            buffer = BUFFER()
-                            cur_idx = 0
+                            # 将记录添加到累积buffer中
                             for row in records:
                                 trade_datetime = datetime.fromtimestamp(row['datetime'] / 1000000000)
-                                curBar = buffer[cur_idx]
-                                curBar.date = int(trade_datetime.strftime("%Y%m%d"))
-                                if freq == 86400:
-                                    curBar.time = 0
-                                else:
-                                    curBar.time = int(trade_datetime.strftime("%H%M")) + (curBar.date - 19900000) * 10000
-                                curBar.open = row['open']
-                                curBar.high = row['high']
-                                curBar.low = row['low']
-                                curBar.close = row['close']
-                                curBar.vol = row['volume']
-                                curBar.hold = row['open_oi']
-                                curBar.diff = row['close_oi'] - row['open_oi']
-                                cur_idx += 1
+                                accumulated_records.append((row, trade_datetime))
 
-                            ay = stdCode.split(".")
-                            cb(ay[0], stdCode, buffer, len(records), period)
-                            print(f"[数据] 本批次保存 {len(records)} 条记录")
+                            print(f"[数据] 本批次累积 {len(records)} 条记录，总累积: {len(accumulated_records)} 条")
+
+                            # 检查是否需要刷新buffer
+                            flush_buffer_if_needed()
                             if backtest_start == end_date:
                                 print("[回测] 回测开始时间等于截止时间，回测窗口内数据已结束")
                                 break
@@ -657,3 +708,6 @@ class DHTqSdk(BaseDataHelper):
                 print(f"[完成] {stdCode} 数据收集完成，累计记录: {len(existing_datetimes)} 条")
             else:
                 print(f"[完成] {stdCode} 无可收集数据")
+
+            # 处理该代码剩余的buffer数据
+            flush_remaining_buffer()
