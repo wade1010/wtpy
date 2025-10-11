@@ -30,11 +30,17 @@ except ImportError:
     logging.warning("未安装python-dotenv包，将直接从系统环境变量读取配置")
 
 # 配置日志
+# 删除旧的日志文件
+log_file = 'batch_download.log'
+if os.path.exists(log_file):
+    os.remove(log_file)
+    print(f"已删除旧日志文件: {log_file}")
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('batch_download.log', encoding='utf-8'),
+        logging.FileHandler(log_file, encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
@@ -215,55 +221,84 @@ class FuturesBatchDownloader:
         if exchanges is None:
             exchanges = list(self.exchanges.keys())
 
+        # 先计算总任务数
+        total_tasks = 0
+        for exchange in exchanges:
+            if exchange in self.futures_list:
+                total_tasks += len(self.futures_list[exchange]) * len(periods)
+
+        if total_tasks == 0:
+            logging.warning("没有找到需要下载的合约")
+            return
+
         # 统计信息
-        total_contracts = 0
         success_count = 0
         failed_count = 0
+        current_task = 0
 
-        logging.info(f"开始批量下载，周期: {periods}, 交易所: {exchanges}")
-        logging.info(f"时间范围: {start_date} 到 {end_date}")
+        logging.info("=" * 60)
+        logging.info("开始批量下载所有合约")
+        logging.info(f"周期: {periods}")
+        logging.info(f"交易所: {[self.exchanges.get(ex, ex) for ex in exchanges]}")
+        logging.info(f"时间范围: {start_date.strftime('%Y-%m-%d')} 到 {end_date.strftime('%Y-%m-%d')}")
+        logging.info(f"总任务数: {total_tasks}")
+        logging.info("=" * 60)
 
-        for exchange in exchanges:
+        for exchange_idx, exchange in enumerate(exchanges, 1):
             if exchange not in self.futures_list:
                 logging.warning(f"交易所 {exchange} 不在合约列表中，跳过")
                 continue
 
             contracts = self.futures_list[exchange]
-            logging.info(f"开始处理 {self.exchanges.get(exchange, exchange)} 的 {len(contracts)} 个合约")
+            exchange_name = self.exchanges.get(exchange, exchange)
 
-            for contract_code, contract_info in contracts.items():
+            logging.info(f"\n[{exchange_idx}/{len(exchanges)}] 开始处理 {exchange_name}")
+            logging.info(f"该交易所共有 {len(contracts)} 个合约，{len(periods)} 个周期")
+
+            for contract_idx, (contract_code, contract_info) in enumerate(contracts.items(), 1):
                 full_code = contract_info["full_code"]
                 contract_name = contract_info["name"]
 
-                logging.info(f"处理合约: {full_code} ({contract_name})")
+                logging.info(f"  [{contract_idx}/{len(contracts)}] 合约: {full_code} ({contract_name})")
 
-                for period in periods:
-                    total_contracts += 1
+                for period_idx, period in enumerate(periods, 1):
+                    current_task += 1
+
+                    logging.info(f"    [{period_idx}/{len(periods)}] 下载 {period} 数据 - 进度: {current_task}/{total_tasks} ({current_task / total_tasks * 100:.1f}%)")
 
                     try:
                         # 下载数据
-                        success = self.download_single_contract(  # ALL
+                        success = self.download_single_contract(
                             full_code, start_date, end_date, period
                         )
 
                         if success:
                             success_count += 1
+                            logging.info(f"    ✓ {full_code} {period} 下载成功 [成功:{success_count} 失败:{failed_count}]")
                         else:
                             failed_count += 1
+                            logging.warning(f"    ✗ {full_code} {period} 下载失败 [成功:{success_count} 失败:{failed_count}]")
 
                     except Exception as e:
-                        logging.error(f"处理 {full_code} {period} 时发生异常: {e}")
                         failed_count += 1
+                        logging.error(f"    ✗ {full_code} {period} 发生异常: {e} [成功:{success_count} 失败:{failed_count}]")
                         continue
 
-        # 输出统计结果
-        logging.info("=" * 50)
+                # 每个合约完成后显示阶段性统计
+                if len(periods) > 1:
+                    logging.info(f"  合约 {full_code} 完成，当前总体进度: {current_task}/{total_tasks} ({current_task / total_tasks * 100:.1f}%)")
+
+        # 输出最终统计结果
+        logging.info("\n" + "=" * 60)
         logging.info("批量下载完成!")
-        logging.info(f"总任务数: {total_contracts}")
-        logging.info(f"成功: {success_count}")
-        logging.info(f"失败: {failed_count}")
-        logging.info(f"成功率: {success_count / total_contracts * 100:.2f}%" if total_contracts > 0 else "0%")
-        logging.info("=" * 50)
+        logging.info(f"总任务数: {total_tasks}")
+        logging.info(f"成功: {success_count} ({success_count / total_tasks * 100:.1f}%)")
+        logging.info(f"失败: {failed_count} ({failed_count / total_tasks * 100:.1f}%)")
+        if failed_count > 0:
+            logging.warning(f"有 {failed_count} 个任务失败，请检查上述错误日志")
+        else:
+            logging.info("所有任务都成功完成！")
+        logging.info("=" * 60)
 
     def download_specific_contracts(self, contract_codes: list,
                                     start_date: datetime.datetime,
@@ -288,14 +323,24 @@ class FuturesBatchDownloader:
         success_count = 0
         failed_count = 0
         total_tasks = len(contract_codes) * len(periods)
+        current_task = 0
 
-        logging.info(f"开始下载指定合约，共 {len(contract_codes)} 个合约，{len(periods)} 个周期")
-        logging.info(f"时间范围: {start_date} 到 {end_date}")
+        logging.info("=" * 60)
+        logging.info("开始下载指定合约")
+        logging.info(f"合约列表: {contract_codes}")
+        logging.info(f"周期: {periods}")
+        logging.info(f"时间范围: {start_date.strftime('%Y-%m-%d')} 到 {end_date.strftime('%Y-%m-%d')}")
+        logging.info(f"总任务数: {total_tasks}")
+        logging.info("=" * 60)
 
-        for contract_code in contract_codes:
-            logging.info(f"处理合约: {contract_code}")
+        for contract_idx, contract_code in enumerate(contract_codes, 1):
+            logging.info(f"\n[{contract_idx}/{len(contract_codes)}] 处理合约: {contract_code}")
 
-            for period in periods:
+            for period_idx, period in enumerate(periods, 1):
+                current_task += 1
+
+                logging.info(f"  [{period_idx}/{len(periods)}] 下载 {period} 数据 - 进度: {current_task}/{total_tasks} ({current_task / total_tasks * 100:.1f}%)")
+
                 try:
                     success = self.download_single_contract(
                         contract_code, start_date, end_date, period
@@ -303,22 +348,31 @@ class FuturesBatchDownloader:
 
                     if success:
                         success_count += 1
+                        logging.info(f"  ✓ {contract_code} {period} 下载成功 [成功:{success_count} 失败:{failed_count}]")
                     else:
                         failed_count += 1
+                        logging.warning(f"  ✗ {contract_code} {period} 下载失败 [成功:{success_count} 失败:{failed_count}]")
 
                 except Exception as e:
-                    logging.error(f"处理 {contract_code} {period} 时发生异常: {e}")
                     failed_count += 1
+                    logging.error(f"  ✗ {contract_code} {period} 发生异常: {e} [成功:{success_count} 失败:{failed_count}]")
                     continue
 
-        # 输出统计结果
-        logging.info("=" * 50)
+            # 每个合约完成后显示阶段性统计
+            if len(periods) > 1:
+                logging.info(f"合约 {contract_code} 完成，当前总体进度: {current_task}/{total_tasks} ({current_task / total_tasks * 100:.1f}%)")
+
+        # 输出最终统计结果
+        logging.info("\n" + "=" * 60)
         logging.info("指定合约下载完成!")
         logging.info(f"总任务数: {total_tasks}")
-        logging.info(f"成功: {success_count}")
-        logging.info(f"失败: {failed_count}")
-        logging.info(f"成功率: {success_count / total_tasks * 100:.2f}%" if total_tasks > 0 else "0%")
-        logging.info("=" * 50)
+        logging.info(f"成功: {success_count} ({success_count / total_tasks * 100:.1f}%)")
+        logging.info(f"失败: {failed_count} ({failed_count / total_tasks * 100:.1f}%)")
+        if failed_count > 0:
+            logging.warning(f"有 {failed_count} 个任务失败，请检查上述错误日志")
+        else:
+            logging.info("所有任务都成功完成！")
+        logging.info("=" * 60)
 
 
 def main():
