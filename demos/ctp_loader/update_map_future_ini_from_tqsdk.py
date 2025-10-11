@@ -1,8 +1,30 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+"""
+从天勤SDK获取期货合约信息并更新map_future.ini配置文件
+支持从环境变量加载账号信息
+
+环境变量配置:
+    TQ_USERNAME: 天勤账户用户名
+    TQ_PASSWORD: 天勤账户密码
+    
+使用方法:
+    1. 复制 env.example 为 .env
+    2. 在 .env 文件中填入真实的天勤账户信息
+    3. 或者设置系统环境变量 TQ_USERNAME 和 TQ_PASSWORD
+"""
+
 from tqsdk import TqApi, TqAuth
 import os
 import re
+
+# 加载环境变量
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # 如果没有安装python-dotenv，继续使用系统环境变量
+    pass
 
 # 合约信息缓存
 CONTRACT_INFO = {}
@@ -186,11 +208,28 @@ def update_map_future_ini(new_contracts):
             print(f"  {code}: {name}")
 
 
-def main():
-    username = '15600097398'
-    password = 'wade1010'
+def get_tq_credentials():
+    """从环境变量获取天勤账号信息"""
+    username = os.getenv('TQ_USERNAME')
+    password = os.getenv('TQ_PASSWORD')
     
+    if not username or not password:
+        raise ValueError(
+            "未找到天勤账号信息！\n"
+            "请设置环境变量 TQ_USERNAME 和 TQ_PASSWORD，\n"
+            "或创建 .env 文件并填入账号信息。\n"
+            "参考 env.example 文件格式。"
+        )
+    
+    return username, password
+
+
+def main():
     try:
+        # 从环境变量获取账号信息
+        username, password = get_tq_credentials()
+        print(f"使用天勤账号: {username}")
+        
         # 获取合约信息
         contracts = get_contracts_from_tqsdk(username, password)
         
@@ -200,8 +239,12 @@ def main():
         else:
             print("未获取到任何合约信息")
             
+    except ValueError as e:
+        print(f"配置错误: {e}")
+        exit(1)
     except Exception as e:
         print(f"发生错误: {str(e)}")
+        exit(1)
 
 
 if __name__ == "__main__":

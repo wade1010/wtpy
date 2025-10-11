@@ -44,10 +44,10 @@ downloader.batch_download_all_contracts(
 ```python
 # 只下载指定的几个合约
 specific_contracts = [
-    "DCE.jm.HOT",      # 焦煤主连
-    "CFFEX.IF.HOT",    # 沪深300股指期货主连
-    "CFFEX.IC.HOT",    # 中证500股指期货主连
-    "SHFE.rb.HOT"      # 螺纹钢主连
+    "DCE.jm.HOT",  # 焦煤主连
+    "CFFEX.IF.HOT",  # 沪深300股指期货主连
+    "CFFEX.IC.HOT",  # 中证500股指期货主连
+    "SHFE.rb.HOT"  # 螺纹钢主连
 ]
 
 downloader.download_specific_contracts(
@@ -72,19 +72,19 @@ downloader.batch_download_all_contracts(
 
 ## 支持的交易所
 
-| 代码 | 交易所名称 |
-|------|------------|
-| SHFE | 上海期货交易所 |
-| CFFEX | 中国金融期货交易所 |
-| DCE | 大连商品交易所 |
-| CZCE | 郑州商品交易所 |
-| INE | 上海国际能源交易中心 |
-| GFEX | 广州期货交易所 |
+| 代码    | 交易所名称      |
+|-------|------------|
+| SHFE  | 上海期货交易所    |
+| CFFEX | 中国金融期货交易所  |
+| DCE   | 大连商品交易所    |
+| CZCE  | 郑州商品交易所    |
+| INE   | 上海国际能源交易中心 |
+| GFEX  | 广州期货交易所    |
 
 ## 支持的K线周期
 
 - `min1`: 1分钟K线
-- `min5`: 5分钟K线  
+- `min5`: 5分钟K线
 - `day`: 日K线
 
 ## 配置参数
@@ -111,17 +111,20 @@ downloader.batch_download_all_contracts(
 ## 数据存储
 
 下载的数据会自动保存为dsb格式，存储路径由wtpy的配置决定。通常保存在：
+
 - `../storage/his/min1/` - 1分钟数据
-- `../storage/his/min5/` - 5分钟数据  
+- `../storage/his/min5/` - 5分钟数据
 - `../storage/his/day/` - 日线数据
 
 ## 日志记录
 
 程序会生成详细的日志记录：
+
 - 控制台输出：实时显示下载进度
 - 文件日志：保存到 `batch_download.log`
 
 日志包含：
+
 - 每个合约的下载状态
 - 成功/失败统计
 - 错误详情
@@ -138,6 +141,7 @@ downloader.batch_download_all_contracts(
 ## 错误处理
 
 程序包含完善的错误处理机制：
+
 - 单个合约下载失败不会影响其他合约
 - 自动记录失败原因
 - 提供详细的成功率统计
