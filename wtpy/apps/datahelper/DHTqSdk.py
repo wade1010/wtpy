@@ -575,6 +575,8 @@ class DHTqSdk(BaseDataHelper):
                 print(f"[数据] 方法结束，保存剩余 {len(accumulated_records)} 条记录")
                 accumulated_records = []  # 清空buffer
 
+        freq60_multiple = 400
+        freq300_multiple = 50
         for stdCode in codes:
             count += 1
             if length > 1:
@@ -614,12 +616,12 @@ class DHTqSdk(BaseDataHelper):
                     end_np_d = np.busday_offset(start_np_d, trading_days_needed, roll='following')
                     end_dt = datetime.strptime(np.datetime_as_string(end_np_d), "%Y-%m-%d")
                 elif freq == 60:
-                    trading_days_needed = int(np.ceil(batch_size / 250))
+                    trading_days_needed = int(np.ceil(batch_size / freq60_multiple))
                     start_np_d = np.datetime64(current_start.date(), 'D')
                     end_np_d = np.busday_offset(start_np_d, trading_days_needed, roll='following')
                     end_dt = datetime.strptime(np.datetime_as_string(end_np_d), "%Y-%m-%d")
                 elif freq == 300:
-                    trading_days_needed = int(np.ceil(batch_size / 45))
+                    trading_days_needed = int(np.ceil(batch_size / freq300_multiple))
                     start_np_d = np.datetime64(current_start.date(), 'D')
                     end_np_d = np.busday_offset(start_np_d, trading_days_needed, roll='following')
                     end_dt = datetime.strptime(np.datetime_as_string(end_np_d), "%Y-%m-%d")
@@ -648,11 +650,30 @@ class DHTqSdk(BaseDataHelper):
                         # 收集并构造成 WTSBarStruct 缓冲
                         records = []
                         latest_datetime = None
+                        is_first_valid_k = True
+                        need_continue = False
                         for i in range(len(klines)):
                             if klines.iloc[i]['datetime'] > 0:
                                 timestamp_ns = klines.iloc[i]['datetime']
                                 timestamp_s = timestamp_ns / 1000000000
                                 trade_datetime = datetime.fromtimestamp(timestamp_s)
+                                if is_first_valid_k:
+                                    is_first_valid_k = False
+                                    if trade_datetime > current_start:
+                                        print(f"[数据] 首根有效K线的交易时间 {trade_datetime} 晚于当前开始时间 {current_start}，正在调整频率倍数，然后重新获取K线数据")
+                                        if freq == 60:
+                                            old_multiple = freq60_multiple
+                                            freq60_multiple += 50
+                                            freq60_multiple = max(freq60_multiple, 1)
+                                            print(f"[数据] 60秒频率倍数调整: {old_multiple} -> {freq60_multiple}")
+                                        elif freq == 300:
+                                            old_multiple = freq300_multiple
+                                            freq300_multiple += 5
+                                            freq300_multiple = max(freq300_multiple, 1)
+                                            print(f"[数据] 300秒频率倍数调整: {old_multiple} -> {freq300_multiple}")
+
+                                        need_continue = True
+                                        break
                                 if start_date <= trade_datetime <= end_date:
                                     if trade_datetime in existing_datetimes:
                                         continue
@@ -660,7 +681,8 @@ class DHTqSdk(BaseDataHelper):
                                     records.append(klines.iloc[i])
                                     if latest_datetime is None or trade_datetime > latest_datetime:
                                         latest_datetime = trade_datetime
-
+                        if need_continue:
+                            continue
                         if records:
                             # 将记录添加到累积buffer中
                             for row in records:
