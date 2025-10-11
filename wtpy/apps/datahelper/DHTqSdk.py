@@ -600,10 +600,10 @@ class DHTqSdk(BaseDataHelper):
                         print(f"[逆序] 有效获取数量为 {collected_count}，小于 {data_length - 100}，且获取的数据中第一条K线的时间 {first_valid_datetime} 在开始时间 {start_date} 之前，表明已获取全部数据")
                         break
                     elif collected_count == 0:
-                        print(f"获取的K线数量为0，结束下载!!!!!!!!!!!!!!!!!")
+                        print(f"[逆序] 获取的K线数量为0，结束下载!!!!!!!!!!!!!!!!!")
                         break
                     elif collected_count <= data_length - 100:
-                        print(f"获取的K线数量不足{data_length - 100}条，可能已经是最老的数据了!!!!!!!!!!!!!!!!!")
+                        print(f"[逆序] 获取的K线数量不足{data_length - 100}条，可能已经是最老的数据了!!!!!!!!!!!!!!!!!")
 
                     current_end = current_data[0]['datetime']
                     # 检查是否已经到达起始日期
@@ -1058,35 +1058,30 @@ class DHTqSdk(BaseDataHelper):
                                 records.append(klines.iloc[i])
                                 collected_count += 1
 
-                    # 将本次收集的数据加入到所有数据中（逆序收集，所以新数据加到前面）
-                    if records:
-                        # 直接批量添加记录到累积buffer，提升效率
-                        accumulated_records.extend(records)
+                    # 直接批量添加记录到累积buffer，提升效率
+                    accumulated_records.extend(records)
 
-                        print(f"[数据] 共获取 {len(klines)} 条K线数据，有效获取 {collected_count} 条K线数据，总计 {len(accumulated_records)} 条")
+                    print(f"[数据] 共获取 {len(klines)} 条K线数据，有效获取 {collected_count} 条K线数据，总计 {len(accumulated_records)} 条")
 
-                        # 检查是否需要刷新缓存
-                        _flush_buffer_if_needed(accumulated_records)
+                    # 检查是否需要刷新缓存
+                    _flush_buffer_if_needed(accumulated_records)
 
-                        # 检查是否满足终止条件
-                        if collected_count <= data_length - 100 and first_valid_datetime and first_valid_datetime < start_date:
-                            print(f"[逆序] 有效获取数量为 {collected_count}，小于 {data_length - 100}，且获取的数据中第一条K线的时间 {first_valid_datetime} 在开始时间 {start_date} 之前，表明已获取全部数据")
-                            break
-                        elif collected_count == 0:
-                            print(f"获取的K线数量为0，结束下载!!!!!!!!!!!!!!!!!")
-                            break
-                        elif collected_count <= data_length - 100:
-                            print(f"获取的K线数量不足{data_length - 100}条，可能已经是最老的数据了!!!!!!!!!!!!!!!!!")
+                    # 检查是否满足终止条件
+                    if collected_count <= data_length - 100 and first_valid_datetime and first_valid_datetime < start_date:
+                        print(f"[逆序] 有效获取数量为 {collected_count}，小于 {data_length - 100}，且获取的数据中第一条K线的时间 {first_valid_datetime} 在开始时间 {start_date} 之前，表明已获取全部数据")
+                        break
+                    elif collected_count == 0:
+                        print(f"获取的K线数量为0，结束下载!!!!!!!!!!!!!!!!!")
+                        break
+                    elif collected_count <= data_length - 100:
+                        print(f"获取的K线数量不足{data_length - 100}条，可能已经是最老的数据了!!!!!!!!!!!!!!!!!")
 
-                        current_end = datetime.fromtimestamp(records[0]['datetime'] / 1000000000)
-                        # 检查是否已经到达起始日期
-                        if current_end <= start_date:
-                            print(f"[逆序] 已到达起始日期{start_date}，停止查询")
-                            break
-                        print(f"[逆序] 下次查询结束时间设置为: {current_end}\n")
-                    else:
-                        print("[切换] 此窗口无数据，向后滑动时间窗口")
-                        current_end = backtest_end
+                    current_end = datetime.fromtimestamp(records[0]['datetime'] / 1000000000)
+                    # 检查是否已经到达起始日期
+                    if current_end <= start_date:
+                        print(f"[逆序] 已到达起始日期{start_date}，停止查询")
+                        break
+                    print(f"[逆序] 下次查询结束时间设置为: {current_end}\n")
             except BacktestFinished:
                 if collected_count < data_length:
                     break
