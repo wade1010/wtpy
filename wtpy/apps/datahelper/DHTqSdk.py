@@ -379,7 +379,7 @@ class DHTqSdk(BaseDataHelper):
         all_bars = []  # 存储所有收集的BarData，用于最后按时间顺序写入
         global_accumulated_bars = []  # 全局累积变量，用于无老数据时的直接保存
 
-        max_bars = 100000  # 最大缓存条数限制，参考dmpBars的accumulated_records_max
+        max_bars = 50000  # 最大缓存条数限制，参考dmpBars的accumulated_records_max
 
         def _save_bars_to_csv(reason):
             """保存all_bars到CSV文件的公共逻辑"""
@@ -905,7 +905,7 @@ class DHTqSdk(BaseDataHelper):
         @period K线周期，支持day、min1、min5
         '''
         USE_REVERSE = True  # 从天勤下载使用正序还是倒序，True表示倒序，这个比较快一些
-        accumulated_records_max = 100000
+        accumulated_records_max = 50000
         if start_date is None:
             start_date = datetime(year=1990, month=1, day=1)
         if end_date is None:
