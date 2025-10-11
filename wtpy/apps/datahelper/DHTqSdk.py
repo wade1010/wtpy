@@ -1,5 +1,4 @@
 import numpy as np
-
 from wtpy.apps.datahelper.DHDefs import BaseDataHelper, DBHelper
 from wtpy.WtCoreDefs import WTSBarStruct
 from tqsdk import TqApi, TqAuth, TqSim, TqBacktest
@@ -8,6 +7,127 @@ from datetime import datetime, timedelta
 import time as sleep_time
 import json
 import os
+from ctypes import POINTER, cast
+from wtpy.wrapper import WtDataHelper
+
+
+def cb_store_bar_to_dsb(exchg: str, stdCode: str, firstBar: POINTER(WTSBarStruct), count: int, period: str):
+    """
+    处理K线数据块的回调函数
+
+    @exchg      交易所代码
+    @stdCode    标准代码
+    @firstBar   K线数据指针
+    @count      K线数据条数
+    @period     K线周期
+    """
+    dtHelper = WtDataHelper()
+    if stdCode[-4:] == '.HOT':
+        stdCode = stdCode[:-4] + "_HOT"
+    else:
+        ay = stdCode.split(".")
+        if exchg == 'CZCE':
+            stdCode = ay[1] + ay[2][1:]
+        else:
+            stdCode = ay[1] + ay[2]
+
+    filename = f"../storage/his/{period}/{exchg}/"  # 后续看看要不要优化，暂时默认这个位置
+    if not os.path.exists(filename):
+        os.makedirs(filename)
+    filename += f"{stdCode}.dsb"
+    if period == "day":
+        period = "d"
+    elif period == "min1":
+        period = "m1"
+    else:
+        period = "m5"
+
+    # 读取现有数据
+    existing_data = None
+    existing_count = 0
+    if os.path.exists(filename):
+        try:
+            existing_data = dtHelper.read_dsb_bars(filename)
+            if existing_data:
+                existing_count = len(existing_data)
+                print(f"[DSB] {stdCode} 已有数据: {existing_count} 条")
+            else:
+                print(f"[DSB] {stdCode} DSB文件存在但无数据")
+        except Exception as e:
+            print(f"[DSB] 读取 {stdCode} 已有数据失败: {str(e)}")
+    else:
+        print(f"[DSB] {stdCode} DSB文件不存在，将新建")
+
+    # 将新数据转换为numpy数组
+    print(f"[批次] 接收到新数据: {count} 条")
+    new_bars = []
+    for i in range(count):
+        bar = firstBar[i]
+        new_bars.append((bar.date, bar.reserve, bar.time, bar.open, bar.high, bar.low, bar.close, bar.settle, bar.money, bar.vol, bar.hold, bar.diff))
+
+    # 合并数据并去重
+    if existing_data is not None and len(existing_data) > 0:
+        # 将现有数据转换为相同格式
+        existing_bars = []
+        for bar in existing_data:
+            existing_bars.append((bar['date'], bar['reserve'], bar['time'], bar['open'], bar['high'], bar['low'], bar['close'], bar['settle'], bar['turnover'], bar['volume'], bar['open_interest'], bar['diff']))
+
+        # 合并数据
+        combined_bars = existing_bars + new_bars
+        combined_count = len(combined_bars)
+
+        # 创建结构化数组并去重
+        dtype = [('date', 'u4'), ('reserve', 'u4'), ('time', 'u4'), ('open', 'f8'), ('high', 'f8'), ('low', 'f8'), ('close', 'f8'), ('settle', 'f8'), ('turnover', 'f8'), ('volume', 'f8'), ('open_interest', 'f8'), ('diff', 'f8')]
+        combined_array = np.array(combined_bars, dtype=dtype)
+
+        # 按日期和时间排序并去重
+        combined_array = np.sort(combined_array, order=['date', 'time'])
+        unique_array, unique_indices = np.unique(combined_array[['date', 'time']], return_index=True)
+        unique_array = combined_array[unique_indices]
+
+        final_count = len(unique_array)
+        duplicate_count = combined_count - final_count
+        actual_new_count = final_count - existing_count
+
+        # 创建WTSBarStruct数组
+        BUFFER = WTSBarStruct * final_count
+        buffer = BUFFER()
+
+        for i in range(final_count):
+            buffer[i].date = unique_array[i]['date']
+            buffer[i].reserve = unique_array[i]['reserve']
+            buffer[i].time = unique_array[i]['time']
+            buffer[i].open = unique_array[i]['open']
+            buffer[i].high = unique_array[i]['high']
+            buffer[i].low = unique_array[i]['low']
+            buffer[i].close = unique_array[i]['close']
+            buffer[i].settle = unique_array[i]['settle']
+            buffer[i].money = unique_array[i]['turnover']
+            buffer[i].vol = unique_array[i]['volume']
+            buffer[i].hold = unique_array[i]['open_interest']
+            buffer[i].diff = unique_array[i]['diff']
+
+        # 保存数据并显示统计报告
+        dtHelper.store_bars(filename, cast(buffer, POINTER(WTSBarStruct)), final_count, period)
+
+        # 显示完整统计报告
+        print(f"[统计] {stdCode} 数据处理完成:")
+        print(f"  - DSB原有数据: {existing_count} 条")
+        print(f"  - 本批次接收: {count} 条")
+        print(f"  - 合并后总计: {combined_count} 条")
+        print(f"  - 去重删除: {duplicate_count} 条")
+        print(f"  - 实际新增: {actual_new_count} 条")
+        print(f"  - 最终保存: {final_count} 条")
+        if count > 0:
+            duplicate_rate = (duplicate_count / count) * 100
+            print(f"  - 重复数据率: {duplicate_rate:.1f}%")
+    else:
+        # 没有现有数据，直接保存新数据
+        dtHelper.store_bars(filename, firstBar, count, period)
+        print(f"[统计] {stdCode} 数据处理完成:")
+        print(f"  - DSB原有数据: 0 条")
+        print(f"  - 本批次接收: {count} 条")
+        print(f"  - 新建文件保存: {count} 条")
 
 
 def stdCodeToTQ(stdCode: str):
@@ -250,8 +370,7 @@ class DHTqSdk(BaseDataHelper):
 
     def _reverse_do_dmp_bars_to_file(self, code, end_date, filepath, freq, start_date, stdCode):
         """
-        按时 逆序 从天勤下载数据
-        参考vnpy的逆序下载逻辑，从end_date开始向前获取数据
+        按时 逆序 从天勤下载数据 分两种情况，本地csv已经有历史数据(读老数据->合并去重->排序->再保存) 和 无历史数据两种情况(有一个全局数组,每次新数据插入到该数组的头部,直接保存该数组)
         """
         # 已存在的日期时间集合，用于去重
         existing_datetimes = set()
@@ -260,7 +379,7 @@ class DHTqSdk(BaseDataHelper):
         all_bars = []  # 存储所有收集的BarData，用于最后按时间顺序写入
         global_accumulated_bars = []  # 全局累积变量，用于无老数据时的直接保存
 
-        max_bars = 1000  # 最大缓存条数限制，参考dmpBars的accumulated_records_max
+        max_bars = 100000  # 最大缓存条数限制，参考dmpBars的accumulated_records_max
 
         def _save_bars_to_csv(reason):
             """保存all_bars到CSV文件的公共逻辑"""
@@ -513,7 +632,7 @@ class DHTqSdk(BaseDataHelper):
 
     def _do_dmp_bars_to_file(self, code, end_date, filepath, freq, start_date, stdCode):
         """
-        按时顺序从天勤下载数据
+        按时顺序从天勤下载数据,是每次都追加写到csv中，只有追加写的方式
         """
         # 已存在的日期时间集合，用于去重
         existing_datetimes = set()
@@ -779,7 +898,7 @@ class DHTqSdk(BaseDataHelper):
     def dmpBars(self, codes: list, cb, start_date: datetime = None, end_date: datetime = None, period: str = "day"):
         '''
         使用天勤下载K线后,传递给回调函数
-        @cb     回调函数，格式如cb(exchg:str, code:str, firstBar:POINTER(WTSBarStruct), count:int, period:str)
+        @cb     回调函数，格式如cb(exchg:str, code:str, firstBar:POINTER(WTSBarStruct), count:int, period:str) 如果传None 则使用 内置 cb_store_bar_to_dsb 来处理
         @codes  股票列表，格式如["SSE.600000","SZSE.000001"]
         @start_date 开始日期，datetime类型，传None则自动设置为1990-01-01
         @end_date   结束日期，datetime类型，传None则自动设置为当前日期
@@ -833,7 +952,10 @@ class DHTqSdk(BaseDataHelper):
                     cur_idx += 1
 
                 ay = stdCode.split(".")
-                cb(ay[0], stdCode, buffer, len(accumulated_records), period)
+                if cb is None:
+                    cb_store_bar_to_dsb(ay[0], stdCode, buffer, len(accumulated_records), period)
+                else:
+                    cb(ay[0], stdCode, buffer, len(accumulated_records), period)
                 print(f"[数据] {reason}，保存 {len(accumulated_records)} 条记录")
                 accumulated_records = []  # 清空buffer
 

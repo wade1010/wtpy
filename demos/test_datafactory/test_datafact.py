@@ -41,5 +41,5 @@ hlper.auth(**{"username": "", "password": ""})
 # hlper.dmpAdjFactorsToDB(dbHelper, codes=["SSE.600000",'SSE.600001'])
 
 # 将数据直接落地成dsb
-
-hlper.dmpBars(codes=["DCE.jm.HOT"], cb=on_bars_block, start_date=datetime.datetime(2020, 1, 1), end_date=datetime.datetime(2025, 10, 11), period="min1")
+# cb如果传None 则使用 内置 cb_store_bar_to_dsb 来处理
+hlper.dmpBars(codes=["DCE.jm.HOT"], cb=None, start_date=datetime.datetime(2020, 1, 1), end_date=datetime.datetime(2025, 10, 11), period="min1")
