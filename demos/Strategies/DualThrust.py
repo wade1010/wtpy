@@ -39,8 +39,8 @@ class StraDualThrust(BaseCtaStrategy):
         pass
 
     def on_calculate(self, context: CtaContext):
+        print(f"on_calculate {context.stra_get_time()},{context.stra_get_price(self.__code__)}")
         code = self.__code__  # 品种代码
-
         trdUnit = 1
         if self.__is_stk__:
             trdUnit = 100
