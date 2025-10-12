@@ -39,6 +39,8 @@ class StraTrendFlow(BaseCtaStrategy):
         code = self.__code__  # 品种代码
         # 准备不同时间框架的K线数据
         context.stra_prepare_bars(code, self.__period__, self.__bar_cnt__, isMain=True)  # 3分钟K线
+        # isMain只有一个，确定后就不能修改，这个再传True，返回空
+        # np_bars2 = context.stra_get_bars(theCode, 'd2', self.__bar_cnt__, isMain=True)
         context.stra_prepare_bars(code, "d1", self.__bar_cnt__, isMain=False)  # 日线
         context.stra_sub_ticks(code)
         context.stra_log_text("多时间框架趋势策略已初始化")
