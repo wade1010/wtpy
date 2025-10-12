@@ -1,23 +1,11 @@
-from datetime import datetime
-
 import pandas as pd
-
+from tools.datetime_utils import DatetimeUtils
 from wtpy import BaseCtaStrategy
 from wtpy import CtaContext
 import numpy as np
-
 from wtpy.CodeHelper import CodeHelper
 from wtpy.WtDataDefs import WtNpKline
 from wtpy.wrapper import WtDataHelper
-
-
-def makeTime(date: int, time: int):
-    '''
-    将系统时间转成datetime\n
-    @date   日期，格式如20200723\n
-    @time   时间，精确到分，格式如0935\n
-    '''
-    return datetime(year=int(date / 10000), month=int(date % 10000 / 100), day=date % 100, hour=int(time / 100), minute=time % 100)
 
 
 class StraTrendFlow(BaseCtaStrategy):
@@ -65,7 +53,7 @@ class StraTrendFlow(BaseCtaStrategy):
         pass
 
     def on_calculate(self, context: CtaContext):
-        now = makeTime(context.stra_get_date(), context.stra_get_time())
+        now = DatetimeUtils.wt_make_time(context.stra_get_date(), context.stra_get_time())
         code = self.__code__  # 品种代码
 
         trdUnit = 1
