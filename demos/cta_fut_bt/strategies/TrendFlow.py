@@ -68,6 +68,8 @@ class StraTrendFlow(BaseCtaStrategy):
         print(now, self.__period__, context.stra_get_price(theCode))
 
         np_bars = context.stra_get_bars(theCode, self.__period__, self.__bar_cnt__, isMain=True)
+        # isMain只有一个，确定后就不能修改，这个再传True，返回空
+        # np_bars2 = context.stra_get_bars(theCode, 'd2', self.__bar_cnt__, isMain=True)
 
         # 把策略参数读进来，作为临时变量，方便引用
         days = self.__days__
