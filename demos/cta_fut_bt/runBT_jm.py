@@ -52,7 +52,7 @@ if __name__ == "__main__":
     isForStk    DualThrust策略用于控制交易品种的代码
     '''
     # 主力合约回测
-    straInfo = StraTrendFlow(name='pydt_jm', code="DCE.jm.HOT", barCnt=50, period="m1", days=30, k1=0.1, k2=0.1, isForStk=False)
+    straInfo = StraTrendFlow(name='pydt_jm', code="DCE.jm.HOT", barCnt=350, period="m1")
 
     # 自定义连续合约回测
     # 测试的时候把storage中的CFFEX.IF.HOT_m5.csv复制一份，改名为CFFEX.IF.0001_m5.csv即可

@@ -10,124 +10,224 @@ from wtpy.wrapper import WtDataHelper
 
 class StraTrendFlow(BaseCtaStrategy):
 
-    def __init__(self, name: str, code: str, barCnt: int, period: str, days: int, k1: float, k2: float, isForStk: bool = False):
+    def __init__(self, name: str, code: str, barCnt: int, period: str = "m3", profit_target: float = 0.02, stop_loss: float = 0.01):
+        """
+        多时间框架趋势策略
+        @name: 策略名称
+        @code: 交易品种代码
+        @barCnt: K线数量
+        @period: 主要周期，默认3分钟
+        @profit_target: 止盈比例，默认2%
+        @stop_loss: 止损比例，默认1%
+        """
         BaseCtaStrategy.__init__(self, name)
-
-        self.__days__ = days
-        self.__k1__ = k1
-        self.__k2__ = k2
 
         self.__period__ = period
         self.__bar_cnt__ = barCnt
         self.__code__ = code
+        self.__profit_target__ = profit_target
+        self.__stop_loss__ = stop_loss
 
-        self.__is_stk__ = isForStk
+        # 存储不同时间框架的K线数据
         self.week_kline: WtNpKline | None = None
+
+        # 记录开仓价格用于止盈止损
+        self.__entry_price__ = 0.0
+        self.__last_signal__ = 0  # 1为多头信号，-1为空头信号，0为无信号
 
     def on_init(self, context: CtaContext):
         code = self.__code__  # 品种代码
-        if self.__is_stk__:
-            code = code + "-"  # 如果是股票代码，后面加上一个+/-，+表示后复权，-表示前复权
-
-        # 这里演示了品种信息获取的接口
-        # pInfo = context.stra_get_comminfo(code)
-        # print(pInfo)
-
-        context.stra_prepare_bars(code, self.__period__, self.__bar_cnt__, isMain=True)
+        # 准备不同时间框架的K线数据
+        context.stra_prepare_bars(code, self.__period__, self.__bar_cnt__, isMain=True)  # 3分钟K线
+        context.stra_prepare_bars(code, "d1", self.__bar_cnt__, isMain=False)  # 日线
         context.stra_sub_ticks(code)
-        context.stra_log_text("DualThrust inited")
+        context.stra_log_text("多时间框架趋势策略已初始化")
 
-        # 读取存储的数据
-        self.xxx = context.user_load_data('xxx', 1)
-
-        # 加载周线
-        dtHelper = WtDataHelper()  # type:WtDataHelper
-
+        # 加载周线数据
+        dtHelper = WtDataHelper()
         comm_id = CodeHelper.stdCodeToStdCommID(code)
-        self.week_kline = dtHelper.read_dsb_bars(f'../storage/his/week/{comm_id}_HOT.dsb')  # type:WtNpKline
-        date_obj = pd.to_datetime(self.week_kline.bartimes[-1], format="%Y%m%d%H%M%S", errors="coerce")
-        print(f"周线长度为 {len(self.week_kline)} ，最近一根K线日期为：{date_obj.strftime('%Y-%m-%d')}")
+        try:
+            self.week_kline = dtHelper.read_dsb_bars(f'../storage/his/week/{comm_id}_HOT.dsb')
+            if self.week_kline is not None and len(self.week_kline) > 0:
+                date_obj = pd.to_datetime(self.week_kline.bartimes[-1], format="%Y%m%d%H%M%S", errors="coerce")
+                context.stra_log_text(f"周线数据加载成功，长度: {len(self.week_kline)}, 最新日期: {date_obj.strftime('%Y-%m-%d')}")
+            else:
+                context.stra_log_text("周线数据加载失败或为空")
+        except Exception as e:
+            context.stra_log_text(f"周线数据加载异常: {str(e)}")
+            self.week_kline = None
 
     def on_tick(self, context: CtaContext, stdCode: str, newTick: dict):
-        # print(newTick)
         pass
+
+    def calculate_ma(self, closes: np.ndarray, period: int) -> float:
+        """
+        计算移动平均线
+        @closes: 收盘价数组
+        @period: 周期
+        @return: 移动平均线值
+        """
+        if len(closes) < period:
+            return 0.0
+        return np.mean(closes[-period:])
+
+    def check_weekly_trend(self) -> bool:
+        """
+        检查周线趋势：5、10、20均线都在上涨
+        @return: True表示周线趋势向上
+        """
+        if self.week_kline is None or len(self.week_kline.closes) < 20:
+            return False
+
+        closes = self.week_kline.closes
+
+        # 计算当前和前一根K线的均线值
+        ma5_current = self.calculate_ma(closes, 5)
+        ma10_current = self.calculate_ma(closes, 10)
+        ma20_current = self.calculate_ma(closes, 20)
+
+        ma5_previous = self.calculate_ma(closes[:-1], 5)
+        ma10_previous = self.calculate_ma(closes[:-1], 10)
+        ma20_previous = self.calculate_ma(closes[:-1], 20)
+
+        # 检查所有均线都在上涨
+        return (ma5_current > ma5_previous and
+                ma10_current > ma10_previous and
+                ma20_current > ma20_previous)
+
+    def check_daily_trend(self, daily_closes: np.ndarray) -> bool:
+        """
+        检查日线趋势：10均线在上涨
+        @daily_closes: 日线收盘价数组
+        @return: True表示日线趋势向上
+        """
+        if len(daily_closes) < 10:
+            return False
+
+        ma10_current = self.calculate_ma(daily_closes, 10)
+        ma10_previous = self.calculate_ma(daily_closes[:-1], 10)
+
+        return ma10_current > ma10_previous
+
+    def check_minute_signal(self, minute_closes: np.ndarray) -> int:
+        """
+        检查3分钟K线信号
+        @minute_closes: 3分钟收盘价数组
+        @return: 1为多头信号，-1为空头信号，0为无信号
+        """
+        if len(minute_closes) < 20:
+            return 0
+
+        ma5 = self.calculate_ma(minute_closes, 5)
+        ma10 = self.calculate_ma(minute_closes, 10)
+        ma20 = self.calculate_ma(minute_closes, 20)
+
+        # 多头信号：5均线 > 10均线 > 20均线
+        if ma5 > ma10 > ma20:
+            return 1
+        # 空头信号：5均线 < 10均线 < 20均线
+        elif ma5 < ma10 < ma20:
+            return -1
+        else:
+            return 0
+
+    def check_profit_loss(self, current_price: float, position: float) -> bool:
+        """
+        检查止盈止损条件
+        @current_price: 当前价格
+        @position: 当前仓位
+        @return: True表示需要平仓
+        """
+        if position == 0 or self.__entry_price__ == 0:
+            return False
+
+        # 计算盈亏比例
+        if position > 0:  # 多头仓位
+            profit_ratio = (current_price - self.__entry_price__) / self.__entry_price__
+        else:  # 空头仓位
+            profit_ratio = (self.__entry_price__ - current_price) / self.__entry_price__
+
+        # 止盈或止损
+        return profit_ratio >= self.__profit_target__ or profit_ratio <= -self.__stop_loss__
 
     def on_calculate(self, context: CtaContext):
         now = DatetimeUtils.wt_make_time(context.stra_get_date(), context.stra_get_time())
-        code = self.__code__  # 品种代码
+        code = self.__code__
 
-        trdUnit = 1
-        if self.__is_stk__:
-            trdUnit = 100
-
-        # 读取最近50条1分钟线(dataframe对象)
         theCode = code
-        if self.__is_stk__:
-            theCode = theCode + "-"  # 如果是股票代码，后面加上一个+/-，+表示后复权，-表示前复权
+        # 获取当前价格
+        current_price = context.stra_get_price(theCode)
+        context.stra_log_text(f"当前K线时间为 {now}，价格为 {current_price}")
+        if current_price <= 0:
+            return
 
-        print(now, self.__period__, context.stra_get_price(theCode))
+        # 获取当前仓位
+        curPos = context.stra_get_position(code)
 
-        np_bars = context.stra_get_bars(theCode, self.__period__, self.__bar_cnt__, isMain=True)
-        # isMain只有一个，确定后就不能修改，这个再传True，返回空
-        # np_bars2 = context.stra_get_bars(theCode, 'd2', self.__bar_cnt__, isMain=True)
+        # 获取3分钟K线数据
+        minute_bars = context.stra_get_bars(theCode, self.__period__, self.__bar_cnt__, isMain=True)
+        if minute_bars is None or len(minute_bars.closes) < 20:
+            return
 
-        # 把策略参数读进来，作为临时变量，方便引用
-        days = self.__days__
-        k1 = self.__k1__
-        k2 = self.__k2__
+        # 获取日线数据
+        daily_bars = context.stra_get_bars(theCode, "d1", 50, isMain=False)
+        if daily_bars is None or len(daily_bars.closes) < 10:
+            return
 
-        # 平仓价序列、最高价序列、最低价序列
-        closes = np_bars.closes
-        highs = np_bars.highs
-        lows = np_bars.lows
+        # 检查止盈止损
+        if curPos != 0 and self.check_profit_loss(current_price, curPos):
+            if curPos > 0:
+                context.stra_exit_long(code, abs(curPos), 'profit_stop_loss')
+                context.stra_log_text(f"多头止盈止损平仓，价格: {current_price:.2f}, 开仓价: {self.__entry_price__:.2f}")
+            else:
+                context.stra_exit_short(code, abs(curPos), 'profit_stop_loss')
+                context.stra_log_text(f"空头止盈止损平仓，价格: {current_price:.2f}, 开仓价: {self.__entry_price__:.2f}")
 
-        # 读取days天之前到上一个交易日位置的数据
-        hh = np.amax(highs[-days:-1])
-        hc = np.amax(closes[-days:-1])
-        ll = np.amin(lows[-days:-1])
-        lc = np.amin(closes[-days:-1])
+            self.__entry_price__ = 0.0
+            self.__last_signal__ = 0
+            return
 
-        # 读取今天的开盘价、最高价和最低价
-        # lastBar = df_bars.get_last_bar()
-        openpx = np_bars.opens[-1]
-        highpx = np_bars.highs[-1]
-        lowpx = np_bars.lows[-1]
+        # 检查各时间框架的趋势条件
+        weekly_bullish = self.check_weekly_trend()
+        daily_bullish = self.check_daily_trend(daily_bars.closes)
+        minute_signal = self.check_minute_signal(minute_bars.closes)
 
-        '''
-        !!!!!这里是重点
-        1、首先根据最后一条K线的时间，计算当前的日期
-        2、根据当前的日期，对日线进行切片,并截取所需条数
-        3、最后在最终切片内计算所需数据
-        '''
+        # 记录信号状态（用于调试）
+        context.stra_log_text(f"价格: {current_price:.2f}, 周线趋势: {weekly_bullish}, 日线趋势: {daily_bullish}, 3分钟信号: {minute_signal}, 当前仓位: {curPos}")
 
-        # 确定上轨和下轨
-        upper_bound = openpx + k1 * max(hh - lc, hc - ll)
-        lower_bound = openpx - k2 * max(hh - lc, hc - ll)
-
-        # 读取当前仓位
-        curPos = context.stra_get_position(code) / trdUnit
-
+        # 开仓逻辑
         if curPos == 0:
-            if highpx >= upper_bound:
-                context.stra_enter_long(code, 1 * trdUnit, 'enterlong')
-                # context.stra_log_text(f"向上突破{highpx:.2f}>={upper_bound:.2f}，多仓进场")
-                # 修改并保存
-                self.xxx = 1
-                context.user_save_data('xxx', self.xxx)
+            # 多头开仓条件：周线5/10/20均线上涨 + 日线10均线上涨 + 3分钟5>10>20
+            if weekly_bullish and daily_bullish and minute_signal == 1:
+                context.stra_enter_long(code, 1, 'multi_timeframe_long')
+                self.__entry_price__ = current_price
+                self.__last_signal__ = 1
+                context.stra_log_text(f"多头开仓，价格: {current_price:.2f}")
                 return
 
-            if lowpx <= lower_bound and not self.__is_stk__:
-                context.stra_enter_short(code, 1 * trdUnit, 'entershort')
-                # context.stra_log_text(f"向下突破{lowpx:.2f}<={lower_bound:.2f}，空仓进场")
+            # 空头开仓条件：所有条件相反
+            if not weekly_bullish and not daily_bullish and minute_signal == -1:
+                context.stra_enter_short(code, 1, 'multi_timeframe_short')
+                self.__entry_price__ = current_price
+                self.__last_signal__ = -1
+                context.stra_log_text(f"空头开仓，价格: {current_price:.2f}")
                 return
+
+        # 平仓逻辑（信号反转时）
         elif curPos > 0:
-            if lowpx <= lower_bound:
-                context.stra_exit_long(code, 1 * trdUnit, 'exitlong')
-                # context.stra_log_text(f"向下突破{lowpx:.2f}<={lower_bound:.2f}，多仓出场")
-                # raise Exception("except on purpose")
+            # 多头平仓：趋势转弱或出现空头信号
+            if not weekly_bullish or not daily_bullish or minute_signal == -1:
+                context.stra_exit_long(code, abs(curPos), 'trend_reversal')
+                context.stra_log_text(f"多头趋势反转平仓，价格: {current_price:.2f}")
+                self.__entry_price__ = 0.0
+                self.__last_signal__ = 0
                 return
-        else:
-            if highpx >= upper_bound and not self.__is_stk__:
-                context.stra_exit_short(code, 1 * trdUnit, 'exitshort')
-                # context.stra_log_text(f"向上突破{highpx:.2f}>={upper_bound:.2f}，空仓出场")
+
+        elif curPos < 0:
+            # 空头平仓：趋势转强或出现多头信号
+            if weekly_bullish or daily_bullish or minute_signal == 1:
+                context.stra_exit_short(code, abs(curPos), 'trend_reversal')
+                context.stra_log_text(f"空头趋势反转平仓，价格: {current_price:.2f}")
+                self.__entry_price__ = 0.0
+                self.__last_signal__ = 0
                 return
