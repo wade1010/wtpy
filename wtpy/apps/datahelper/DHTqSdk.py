@@ -595,7 +595,7 @@ class DHTqSdk(BaseDataHelper):
                             # 过滤日期范围
                             if start_date <= trade_datetime <= end_date:
                                 date_str = trade_datetime.strftime("%Y-%m-%d")
-                                time_str = '00:00:00' if freq == 86400 else trade_datetime.strftime("%H:%M:%S")
+                                time_str = '0' if freq == 86400 else trade_datetime.strftime("%H:%M:%S")
                                 bar_data = {
                                     "datetime": trade_datetime,
                                     "date": date_str,
@@ -762,7 +762,7 @@ class DHTqSdk(BaseDataHelper):
                                     print(f"[数据] 首条有效K线时间: {trade_datetime}")
                                     is_first_valid = False
                                 date_str = trade_datetime.strftime("%Y-%m-%d")
-                                time_str = '00:00:00' if freq == 86400 else trade_datetime.strftime("%H:%M:%S")
+                                time_str = '0' if freq == 86400 else trade_datetime.strftime("%H:%M:%S")
 
                                 bar_data = {
                                     "date": date_str,
