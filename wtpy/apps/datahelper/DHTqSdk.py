@@ -63,7 +63,7 @@ def cb_store_bar_to_dsb(exchg: str, stdCode: str, firstBar: POINTER(WTSBarStruct
     new_bars = []
     for i in range(count):
         bar = firstBar[i]
-        new_bars.append((bar.date, bar.reserve, bar.time, bar.open, bar.high, bar.low, bar.close, bar.settle, bar.money, bar.vol, bar.hold, bar.diff))
+        new_bars.append((bar.date, bar.reserve, bar.time, bar.open, bar.high, bar.low, bar.close, bar.settle, bar.turnover, bar.volume, bar.open_interest, bar.diff))
 
     # 合并数据并去重
     if existing_data is not None and len(existing_data) > 0:
@@ -102,9 +102,9 @@ def cb_store_bar_to_dsb(exchg: str, stdCode: str, firstBar: POINTER(WTSBarStruct
             buffer[i].low = unique_array[i]['low']
             buffer[i].close = unique_array[i]['close']
             buffer[i].settle = unique_array[i]['settle']
-            buffer[i].money = unique_array[i]['turnover']
-            buffer[i].vol = unique_array[i]['volume']
-            buffer[i].hold = unique_array[i]['open_interest']
+            buffer[i].turnover = unique_array[i]['turnover']
+            buffer[i].volume = unique_array[i]['volume']
+            buffer[i].open_interest = unique_array[i]['open_interest']
             buffer[i].diff = unique_array[i]['diff']
 
         # 保存数据并显示统计报告
@@ -966,8 +966,8 @@ class DHTqSdk(BaseDataHelper):
                 curBar.high = row['high']
                 curBar.low = row['low']
                 curBar.close = row['close']
-                curBar.vol = row['volume']
-                curBar.hold = row['open_oi']
+                curBar.volume = row['volume']
+                curBar.open_interest = row['open_oi']
                 curBar.diff = row['close_oi'] - row['open_oi']
                 cur_idx += 1
 

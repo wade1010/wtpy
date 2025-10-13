@@ -10,6 +10,7 @@ import psutil
 
 from .EventReceiver import EventReceiver, EventSink
 from .WtLogger import WtLogger
+from wtpy import WtMsgQue
 
 from enum import Enum
 
@@ -103,7 +104,7 @@ class AppInfo(EventSink):
         self._check_span = appConf["span"]
         self._guard = appConf["guard"]
         old_mqurl = self._mq_url
-        self._mq_url = appConf["mqurl"]
+        self._mq_url = appConf["mqurl"] if "mqurl" in appConf else ""
         self._redirect = appConf["redirect"]
         self._schedule = appConf["schedule"]["active"]
         self._weekflag = appConf["schedule"]["weekflag"]
@@ -360,6 +361,8 @@ class WatchDog:
         self.__worker__ = None
         self.__sinks__ = sink
         self.__logger__ = logger
+
+        mq = WtMsgQue(logger)
 
         #加载调度列表
         cur = self.__db_conn__.cursor()
