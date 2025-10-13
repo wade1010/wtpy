@@ -38,6 +38,7 @@ class PlatformHelper:
     
     @staticmethod
     def auto_encode(s:str) -> bytes:
+        return bytes(s, encoding = "utf-8")
         if PlatformHelper.isWindows():
             return bytes(s, encoding = "utf-8").decode('utf-8').encode('gbk')
         else:
