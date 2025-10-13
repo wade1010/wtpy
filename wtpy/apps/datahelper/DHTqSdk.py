@@ -1034,9 +1034,15 @@ class DHTqSdk(BaseDataHelper):
 
             # 不超过剩余可用额度
             data_length = min(data_length, 10000)
-            if data_length < 1000:
-                print(f"[回测] 获取条数 {data_length} < 1000，将获取数置为1000")
+            if freq == 60 and data_length < 1000:
+                print(f"[回测] 1分钟K线，获取条数 {data_length} < 1000，将获取数置为 1000")
                 data_length = 1000
+            elif freq == 300 and data_length < 500:
+                print(f"[回测] 5分钟K线，获取条数 {data_length} < 500，将获取数置为 500")
+                data_length = 500
+            elif freq == 86400 and data_length < 300:
+                print(f"[回测] 日K线，获取条数 {data_length} < 300，将获取数置为 300")
+                data_length = 300
 
             # 设置回测时间窗口
             backtest_start = current_end
