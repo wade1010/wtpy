@@ -1034,6 +1034,9 @@ class DHTqSdk(BaseDataHelper):
 
             # 不超过剩余可用额度
             data_length = min(data_length, 10000)
+            if data_length < 1000:
+                print(f"[回测] 获取条数 {data_length} < 1000，将获取数置为1000")
+                data_length = 1000
 
             # 设置回测时间窗口
             backtest_start = current_end
