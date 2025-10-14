@@ -431,7 +431,7 @@ class FuturesBatchDownloader:
                         logging.info(f"{full_code} {period} 当前数据已是最新，跳过下载")
                         return True
 
-                    logging.info(f"实际开始时间已从增量点回溯10天, from {last_time} to {last_time - datetime.timedelta(days=10)}")
+                    logging.info(f"实际开始时间已从增量点回溯10天, from {last_time - datetime.timedelta(days=10)} to {last_time}")
                     actual_start_date = last_time - datetime.timedelta(days=10)
                     # 如果计算出的开始时间已经超过结束时间，说明数据已经是最新的
                     if actual_start_date > end_date:
@@ -602,6 +602,11 @@ class FuturesBatchDownloader:
         logging.info("开始下载指定合约")
         logging.info(f"合约列表: {contract_codes}")
         logging.info(f"周期: {periods}")
+        if is_incremental:
+            logging.info("增量更新模式开启，将结束时间设置为当前时间（精确到分钟）")
+            end_date = datetime.datetime.now().replace(second=0, microsecond=0)
+            # 因为增量时需要 合约信息，所以执行下 get_futures_cont_list
+            self.get_futures_cont_list()
         logging.info(f"时间范围: {start_date.strftime('%Y-%m-%d')} 到 {end_date.strftime('%Y-%m-%d')}")
         logging.info(f"总任务数: {total_tasks}")
         logging.info("=" * 60)
@@ -693,7 +698,8 @@ def main():
     #     contract_codes=specific_contracts,
     #     start_date=start_date,
     #     end_date=end_date,
-    #     periods=periods
+    #     periods=periods,
+    #     is_incremental=True
     # )
 
 
