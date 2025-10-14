@@ -1,0 +1,2 @@
+- testTqDtLoader.py 里面 get_tick，这个方法里面的 trading_date需要处理下，目前是使用tick的所在日期，显然不太对
+- ~~batch_download_futures.py 增量保存~~
