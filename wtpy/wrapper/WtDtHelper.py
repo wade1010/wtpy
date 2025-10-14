@@ -37,8 +37,7 @@ class WtDataHelper:
         self.api.resample_bars.argtypes = [c_char_p, CB_DTHELPER_BAR, CB_DTHELPER_COUNT, c_uint64, c_uint64, c_char_p, c_uint32, c_char_p, CB_DTHELPER_LOG]
 
     def on_log_output(self, message:str):
-        #message = bytes.decode(message, 'utf-8')
-        message = bytes.decode(message, 'GBK')
+        message = bytes.decode(message, 'utf-8')
         logging.info(message)
 
     def dump_bars(self, binFolder:str, csvFolder:str, strFilter:str=""):
@@ -138,13 +137,13 @@ class WtDataHelper:
         '''
         return self.api.store_transactions(bytes(targetFile, encoding="utf8"), firstItem, count, self.cb_dthelper_log)
     
-    def read_dsb_bars(self, barFile: str) -> WtNpKline:
+    def read_dsb_bars(self, barFile: str, isDay:bool = False) -> WtNpKline:
         '''
         读取.dsb格式的K线数据
         @tickFile   .dsb的K线数据文件
         @return     WtNpKline,可以通过WtNpKline.ndarray获取numpy的ndarray对象
         '''        
-        bar_cache = WtBarCache(forceCopy=True)
+        bar_cache = WtBarCache(isDay, forceCopy=True)
         if 0 == self.api.read_dsb_bars(bytes(barFile, encoding="utf8"), CB_DTHELPER_BAR(bar_cache.on_read_bar), CB_DTHELPER_COUNT(bar_cache.on_data_count), self.cb_dthelper_log):
             return None
         else:

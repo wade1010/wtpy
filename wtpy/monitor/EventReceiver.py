@@ -3,8 +3,6 @@ import chardet
 
 from wtpy import WtMsgQue, WtMQClient
 
-mq = WtMsgQue()
-
 TOPIC_RT_TRADE = "TRD_TRADE"    # 生产环境下的成交通知
 TOPIC_RT_ORDER = "TRD_ORDER"    # 生产环境下的订单通知
 TOPIC_RT_NOTIFY = "TRD_NOTIFY"  # 生产环境下的普通通知
@@ -40,13 +38,19 @@ def decode_bytes(data:bytes):
             return data.decode()
     else:
         return data.decode()
+    
+mq = None
 
 class EventReceiver(WtMQClient):
 
     def __init__(self, url:str, topics:list = [], sink:EventSink = None, logger = None):
+        global mq
         self.url = url
         self.logger = logger
+        if mq is None:
+            mq = WtMsgQue(logger)
         mq.add_mq_client(url, self)
+        
         for topic in topics:
             self.subscribe(topic)
 
@@ -86,6 +90,7 @@ class EventReceiver(WtMQClient):
         self.start()
 
     def release(self):
+        global mq
         mq.destroy_mq_client(self)
 
 TOPIC_BT_EVENT  = "BT_EVENT"    # 回测环境下的事件，主要通知回测的启动和结束
@@ -111,8 +116,11 @@ class BtEventSink:
 class BtEventReceiver(WtMQClient):
 
     def __init__(self, url:str, topics:list = [], sink:BtEventSink = None, logger = None):
+        global mq
         self.url = url
         self.logger = logger
+        if mq is None:
+            mq = WtMsgQue(logger)
         mq.add_mq_client(url, self)
         for topic in topics:
             self.subscribe(topic)
@@ -141,4 +149,5 @@ class BtEventReceiver(WtMQClient):
         self.start()
 
     def release(self):
+        global mq
         mq.destroy_mq_client(self)

@@ -1,6 +1,5 @@
 import platform
 
-
 class PlatformHelper:
 
     @staticmethod
@@ -16,17 +15,17 @@ class PlatformHelper:
         return False
 
     @staticmethod
-    def getModule(moduleName: str, subdir: str = "") -> str:
+    def getModule(moduleName:str, subdir:str="") -> str:
         dllname = ""
         ext = ""
         prefix = ""
-        if PlatformHelper.isWindows():  # windows平台
+        if PlatformHelper.isWindows(): #windows平台
             ext = ".dll"
             if PlatformHelper.isPythonX64():
                 dllname = "x64/"
             else:
                 dllname = "x86/"
-        else:  # Linux平台
+        else:#Linux平台
             dllname = "linux/"
             prefix = "lib"
             ext = ".so"
@@ -36,12 +35,12 @@ class PlatformHelper:
 
         dllname += prefix + moduleName + ext
         return dllname
-
+    
     @staticmethod
-    def auto_encode(s: str) -> bytes:
-        # 2025-10-12 20:56:49修改
-        return bytes(s, encoding="utf-8")
-        # if PlatformHelper.isWindows():
-        #     return bytes(s, encoding = "utf-8").decode('utf-8').encode('gbk')
-        # else:
-        #     return bytes(s, encoding = "utf-8")
+    def auto_encode(s:str) -> bytes:
+        return bytes(s, encoding = "utf-8")
+        if PlatformHelper.isWindows():
+            return bytes(s, encoding = "utf-8").decode('utf-8').encode('gbk')
+        else:
+            return bytes(s, encoding = "utf-8")
+            

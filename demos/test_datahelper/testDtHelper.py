@@ -16,7 +16,7 @@ def test_store_bars():
         ' <High>': 'high',
         ' <Low>': 'low',
         ' <Close>': 'close',
-        ' <Volume>': 'vol',
+        ' <Volume>': 'volume',
     })
     df['date'] = df['date'].astype('datetime64').dt.strftime('%Y%m%d').astype('int64')
     df['time'] = (df['date'] - 19900000) * 10000 + df['time'].str.replace(':', '').str[:-2].astype('int')
@@ -49,14 +49,12 @@ def test_store_bars_from_datafact_csv():
     df['time'] = (df['date'] - 19900000) * 10000 + df['datetime'].dt.strftime('%H%M%S').str[:-2].astype('int')
 
     # 映射字段到WTSBarStruct格式
-    df['vol'] = df['volume']
-    df['hold'] = df['open_interest']
     df['diff'] = df['diff_interest']
-    df['money'] = 0.0  # 成交额，如果CSV中没有则设为0
+    df['turnover'] = 0.0  # 成交额，如果CSV中没有则设为0
     df['settle'] = 0.0  # 结算价，如果CSV中没有则设为0
 
     # volume open_interest 需要 修改为 在 wtpy/WtCoreDefs.py的WTSBarStruct里面的_fields_ 对应的值
-    wt_columns = ['date', 'time', 'open', 'high', 'low', 'close', 'vol', 'money', 'hold', 'diff', 'settle']
+    wt_columns = ['date', 'time', 'open', 'high', 'low', 'close', 'volume', 'turnover', 'open_interest', 'diff', 'settle']
     df = df[wt_columns]
 
     BUFFER = WTSBarStruct * len(df)
@@ -81,14 +79,12 @@ def test_store_bars_from_vnpy_week_csv():
     # 分别提取日期和时间（WonderTrader格式）
     df['date'] = df['datetime'].dt.strftime('%Y/%m/%d')  # 保持日期格式
     df['time'] = df['datetime'].dt.strftime('%H:%M:%S')  # 保持时间格式
-    df['vol'] = df['volume']
-    df['hold'] = df['open_interest']
 
     df['date'] = df['date'].astype('datetime64[s]').dt.strftime('%Y%m%d').astype('int64')
     df['time'] = (df['date'] - 19900000) * 10000 + df['time'].str.replace(':', '').str[:-2].astype('int')
 
     # volume open_interest 需要 修改为 在 wtpy/WtCoreDefs.py的WTSBarStruct里面的_fields_ 对应的值
-    wt_columns = ['date', 'time', 'open', 'high', 'low', 'close', 'vol', 'turnover', 'hold']
+    wt_columns = ['date', 'time', 'open', 'high', 'low', 'close', 'volume', 'turnover', 'open_interest']
     df = df[wt_columns]
 
     BUFFER = WTSBarStruct * len(df)
@@ -113,14 +109,12 @@ def test_store_bars_from_vnpy_csv():
     # 分别提取日期和时间（WonderTrader格式）
     df['date'] = df['datetime'].dt.strftime('%Y/%m/%d')  # 保持日期格式
     df['time'] = df['datetime'].dt.strftime('%H:%M:%S')  # 保持时间格式
-    df['vol'] = df['volume']
-    df['hold'] = df['open_interest']
 
     df['date'] = df['date'].astype('datetime64').dt.strftime('%Y%m%d').astype('int64')
     df['time'] = (df['date'] - 19900000) * 10000 + df['time'].str.replace(':', '').str[:-2].astype('int')
 
     # volume open_interest 需要 修改为 在 wtpy/WtCoreDefs.py的WTSBarStruct里面的_fields_ 对应的值
-    wt_columns = ['date', 'time', 'open', 'high', 'low', 'close', 'vol', 'turnover', 'hold']
+    wt_columns = ['date', 'time', 'open', 'high', 'low', 'close', 'volume', 'turnover', 'open_interest']
     df = df[wt_columns]
 
     BUFFER = WTSBarStruct * len(df)
@@ -213,7 +207,7 @@ def compare_read_dsb_ticks(times: int = 100):
 
 def read_dsb_bars_to_csv():
     dtHelper = WtDataHelper()
-    dtHelper.dump_bars(binFolder="../storage/his/min1/CFFEX/", csvFolder="min1_csv")
+    dtHelper.dump_bars(binFolder="../storage/his/min1/DCE/", csvFolder="min1_csv")
 
 
 def read_dsb_tick_to_csv():

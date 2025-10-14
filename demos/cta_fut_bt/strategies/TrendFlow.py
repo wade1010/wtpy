@@ -1,4 +1,5 @@
 import pandas as pd
+from datetime import datetime, timedelta
 from tools.datetime_utils import DatetimeUtils
 from wtpy import BaseCtaStrategy
 from wtpy import CtaContext
@@ -53,6 +54,23 @@ class StraTrendFlow(BaseCtaStrategy):
             if self.week_kline is not None and len(self.week_kline) > 0:
                 date_obj = pd.to_datetime(self.week_kline.bartimes[-1], format="%Y%m%d%H%M%S", errors="coerce")
                 context.stra_log_text(f"周线数据加载成功，长度: {len(self.week_kline)}, 最新日期: {date_obj.strftime('%Y-%m-%d')}")
+                # 获取当前时间
+                now = datetime.now()
+                current_weekday = now.weekday()  # 0=周一, 1=周二, ..., 6=周日
+                # 判断当前是否为周末（周六=5, 周日=6）
+                is_weekend = current_weekday >= 5
+                if is_weekend:
+                    # 如果是周末，判断date_obj是不是本周一
+                    # 计算本周一的日期
+                    days_since_monday = current_weekday
+                    kline_week_dt = now - timedelta(days=days_since_monday)
+                else:
+                    # 如果不是周末，判断date_obj是不是上周一
+                    # 计算上周一的日期
+                    days_since_monday = current_weekday
+                    kline_week_dt = now - timedelta(days=days_since_monday + 7)
+                if date_obj.date() != kline_week_dt.date():
+                    raise RuntimeError(f"DSB文件的最后一根周线日期为 {date_obj.date()}，需要的周线日期 {kline_week_dt.date()}，所以需要更新周线")
             else:
                 context.stra_log_text("周线数据加载失败或为空")
         except Exception as e:
@@ -71,7 +89,7 @@ class StraTrendFlow(BaseCtaStrategy):
         """
         if len(closes) < period:
             return 0.0
-        return np.mean(closes[-period:])
+        return float(np.mean(closes[-period:]))
 
     def check_weekly_trend(self) -> bool:
         """
