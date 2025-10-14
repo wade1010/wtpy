@@ -181,18 +181,18 @@ class StraTrendFlow(BaseCtaStrategy):
         if current_price <= 0:
             return
 
-        # 获取当前仓位
-        curPos = context.stra_get_position(code)
-
         # 获取3分钟K线数据
         minute_bars = context.stra_get_bars(theCode, self.__period__, self.__bar_cnt__, isMain=True)
-        if minute_bars is None or len(minute_bars.closes) < 20:
+        if minute_bars is None or len(minute_bars) < 20:
             return
 
         # 获取日线数据
         daily_bars = context.stra_get_bars(theCode, "d1", 50, isMain=False)
         if daily_bars is None or len(daily_bars.closes) < 10:
             return
+
+        # 获取当前仓位
+        curPos = context.stra_get_position(code)
 
         # 检查止盈止损
         if curPos != 0 and self.check_profit_loss(current_price, curPos):
