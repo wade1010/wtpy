@@ -44,6 +44,9 @@ class StraTrendFlow(BaseCtaStrategy):
         # np_bars2 = context.stra_get_bars(theCode, 'd2', self.__bar_cnt__, isMain=True)
         context.stra_prepare_bars(code, "d1", self.__bar_cnt__, isMain=False)  # 日线
         context.stra_sub_ticks(code)
+        # context.stra_sub_ticks(code) # 会触发on_tick
+        # context.stra_sub_bar_events(code, self.__period__)# 这个有作用
+        # context.stra_sub_bar_events(code, 'd1') #这个不起作用
         context.stra_log_text("多时间框架趋势策略已初始化")
 
         # 加载周线数据
