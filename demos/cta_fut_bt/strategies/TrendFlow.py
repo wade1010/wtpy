@@ -193,7 +193,9 @@ class StraTrendFlow(BaseCtaStrategy):
         daily_bars = context.stra_get_bars(theCode, "d1", 50, isMain=False)
         if daily_bars is None or len(daily_bars.closes) < 10:
             return
-
+        context.stra_log_text(f"当前K线时间为 {minute_bars.bartimes[-1]}，分钟级别：-3根close为{minute_bars.closes[-3]},-2根close为{minute_bars.closes[-2]},-1根close为{minute_bars.closes[-1]}|||"
+                              f"日线级别：-3根close为{daily_bars.closes[-3]},-2根close为{daily_bars.closes[-2]},-1根close为{daily_bars.closes[-1]},-1根time为{daily_bars.bartimes[-1]}")
+        # return
         # 获取当前仓位
         curPos = context.stra_get_position(code)
 

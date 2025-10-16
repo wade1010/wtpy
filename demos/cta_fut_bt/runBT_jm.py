@@ -33,7 +33,8 @@ if __name__ == "__main__":
     engine = WtBtEngine(EngineType.ET_CTA)
     engine.init('../common/', "configbt.yaml")
     engine.configBacktest(202501020900, 202509051459)
-    engine.configBTStorage(mode="wtp", path="../storage/")
+    # ！！！！！！！！！！这里使用csv stra_get_bars isMain为False时，数据会有更新，要是wtp/bin/storage等，不会更新，只会是第一次获取的值
+    engine.configBTStorage(mode="csv", path="../storage/")
 
     # 注册自定义连续合约规则
     # engine.registerCustomRule(ruleTag="0001", filename="../common/hots.json")
